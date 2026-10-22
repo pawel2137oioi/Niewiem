@@ -10,6 +10,11 @@ ani potwierdzony wyglad 1:1 ze screenami TSRE.** Modele i tekstury trasy
 pozostaja jej oryginalnymi zasobami. Wymaga Windows x64, DirectX 10+
 i .NET Desktop Runtime 6.0.36 x64.
 
+Aktualizacja chmur usuwa ekranowe ziarno podczas ruchu kamery, stosuje spojny
+szum 3D i domyslnie 50% rozdzielczosci. W Options > Environment jest regulacja
+Cloud resolution (%) 25–100; 25 obniza koszt, 50 jest ustawieniem domyslnym.
+Rozjasniono dzienne chmury, a bloom obejmuje mocniejsze swiatla.
+
 Rozpakuj do nowego folderu i uruchom OpenRails.exe. Dodaj zawartosc przez
 Content > Manually Installed > Add > Browse. Paczka startuje z High i sila 100.
 Obejrzyj widok 2/8; chmury wymagaja zachmurzenia (Ctrl i =/+ zwieksza je).

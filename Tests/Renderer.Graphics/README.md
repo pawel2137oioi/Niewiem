@@ -6,6 +6,15 @@ VolumetricClouds.fx using the pinned dotnet-mgfxc tool and place their .mgfx
 outputs in Content beside Renderer.Graphics.exe. Run the executable with the
 Windows Desktop Runtime 6.0.36. An optional first argument selects the output
 PNG path. The program also writes a cloud-occlusion test image beside it.
+SceneryShader.fx and VolumetricClouds.fx share CloudDensity.fxh; recompile both
+when that include changes. Launch the EXE apphost so assets resolve beside it.
+
+The cloud quality check compares world-aligned pixels after a one-pixel
+off-axis camera pan, checks repeatability, daylight cloud brightness, quality
+changes and a clear-weather frame. It exports cloud-quality and cloud-pan
+images as synthetic fixtures. Render targets preserve scene contents as the
+production compositor does. Failures exit with a nonzero code without opening
+an unhandled-exception dialog.
 
 These checks create a real DirectX GraphicsDevice, render the production
 effects, and read back pixels. They also work under Wine with a working Xorg/

@@ -126,6 +126,8 @@ sampler WaterReflectionSampler = sampler_state {
     MipFilter = None; AddressU = Clamp; AddressV = Clamp;
 };
 
+#include "CloudDensity.fxh"
+
 
 // Some route faces use a constant UV (including one-pixel solid textures).
 // Explicit LOD avoids undefined anisotropic derivatives on those faces.
@@ -238,11 +240,8 @@ void _VSLightsAndShadows(uniform bool ShaderModel3, uniform bool Advanced, in fl
         float3 p = mul(InPosition, World).xyz;
         float height = CloudShadowLayer.x + CloudShadowLayer.y * 0.45;
         p += LightVector_ZFar.xyz * max(0, (height - p.y) / LightVector_ZFar.y);
-        float3 coord = (p + CloudWorldOffset + float3(CloudShadowLayer.w * 7,0,CloudShadowLayer.w * 3)) / 32768;
-        float mass = tex3Dlod(CloudNoise,float4(coord,0)).r * 0.65
-            + tex3Dlod(CloudNoise,float4(coord * 2 + 0.17,0)).r * 0.25
-            + tex3Dlod(CloudNoise,float4(coord * 8 + 0.39,0)).r * 0.1;
-        Out.Color.a = 1 - saturate((mass - lerp(0.72,0.28,CloudShadowLayer.z)) * 7) * 0.55;
+        float mass = CloudMass(p, CloudWorldOffset, CloudShadowLayer.w);
+        Out.Color.a = 1 - CloudAmount(mass, CloudShadowLayer.z) * 0.55;
     }
 	// Headlight lighting
 	Out.LightDir_Fog.xyz = mul(InPosition, World).xyz - HeadlightPosition.xyz;

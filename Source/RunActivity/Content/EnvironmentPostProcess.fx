@@ -24,7 +24,9 @@ float4 Extract(Output v) : SV_TARGET
               + tex2D(Scene, v.UV + SampleStep * float2(-1,1)).rgb
               + tex2D(Scene, v.UV + SampleStep * float2(1,1)).rgb) * 0.25;
     float brightness = max(c.r, max(c.g, c.b));
-    float knee = saturate((brightness - 0.55) / 0.3);
+    // Reserve bloom for bright highlights; ordinary sky/foliage should retain
+    // contrast instead of contributing a broad milky veil.
+    float knee = saturate((brightness - 0.80) / 0.35);
     return float4(c * knee * knee, 1);
 }
 

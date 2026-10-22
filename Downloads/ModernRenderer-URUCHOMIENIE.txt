@@ -1,5 +1,13 @@
 OPEN RAILS - MODERN RENDERER PREVIEW
 
+AKTUALIZACJA CHMUR
+Usunieto ekranowe losowe probkowanie powodujace pelzajace ziarno przy ruchu.
+Chmury korzystaja ze spojnego szumu 3D, 32 probek i domyslnie 50% rozdzielczosci.
+Options > Environment > Cloud resolution (%): 50 to ustawienie domyslne;
+25 obniza koszt, 75/100 zwieksza ostrosc. Obraz chmur ma limit 1280x720 pikseli.
+High visual preset ustawia 50. Efekt wymaga uruchomienia nowej jazdy po zmianie.
+Rozjasniono dzienne chmury i ograniczono bloom na zwyklym niebie/roslinnosci.
+
 To prototyp przebudowy renderera. NIE jest gotowym nowym silnikiem gry
 ani potwierdzonym odwzorowaniem screenow TSRE 1:1.
 

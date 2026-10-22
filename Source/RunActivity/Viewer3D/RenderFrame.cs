@@ -839,7 +839,8 @@ namespace Orts.Viewer3D
             if (Game.RenderProcess.VolumetricClouds == null) Game.RenderProcess.VolumetricClouds = new VolumetricClouds(device);
             Game.RenderProcess.VolumetricClouds.Draw(target, depth, view, projection,
                 new Vector3((location.TileX % 1024) * 2048f,0,-(location.TileZ % 1024) * 2048f),SolarDirection,
-                SharedMaterialManager.FogColor.ToVector3(),environment,weather.CloudCoverFactor,ground,(float)viewer.Simulator.ClockTime);
+                SharedMaterialManager.FogColor.ToVector3(),environment,weather.CloudCoverFactor,ground,(float)viewer.Simulator.ClockTime,
+                Game.Settings.EnvironmentCloudResolution);
         }
 
         void DrawSequencesDistantMountains(GraphicsDevice graphicsDevice, bool logging)

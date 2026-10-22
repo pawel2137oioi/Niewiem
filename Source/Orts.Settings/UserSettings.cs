@@ -201,6 +201,8 @@ namespace ORTS.Settings
         public bool EnvironmentWaterReflections { get; set; }
         [Default(true)]
         public bool EnvironmentVolumetricClouds { get; set; }
+        [Default(50)]
+        public int EnvironmentCloudResolution { get; set; }
 
         // Simulation settings:
         [Default(false)]

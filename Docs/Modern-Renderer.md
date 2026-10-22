@@ -9,7 +9,7 @@ game engine. The older atmosphere-only download remains a separate baseline.
 
 The DirectX 10+ path renders into floating-point HDR color targets. Opaque
 scenery, terrain and vegetation also write metric camera distance into a second
-target, without a separate depth draw. Depth-aware quarter-resolution clouds
+target, without a separate depth draw. Depth-aware reduced-resolution clouds
 are composited after opaque scenery and before glass, particles and cab
 interiors. Scene grading and bloom finish before labels, HUD and 2D overlays.
 The 2D cab retains its colors. Original/MSTS selects the legacy path.
@@ -17,18 +17,34 @@ The preview requires DirectX 10+; older hardware has not been validated with
 the expanded effect binaries.
 
 High clouds are actual 3D density integration, not cloud billboards. A fixed
-64-cubed noise texture drives moving density within a height layer, 20 bounded
+64-cubed noise texture drives moving density within a height layer, 32 bounded
 view samples, two light samples, Beer extinction, ambient light and forward
 scattering. Scene depth terminates each ray. Depth-aware upsampling limits
 leakage at foreground silhouettes. Noise-driven cloud shadows modulate direct
 sunlight per vertex. Clear weather produces no clouds; Ctrl and the =/+ key
 increase cloud cover, Ctrl and - decrease it using the existing weather controls.
 
-The high cloud target is capped at 640 pixels wide, normally a quarter of the
-screen width. The noise texture is generated once and reused. There is no
+Cloud resolution defaults to 50% of screen dimensions, with 25–100% available
+in Environment options; width and total pixels are capped at 1280 and 1280×720.
+The previous preview used 25% with a 640-pixel width cap. 25% is the cheaper
+choice; High visual preset chooses 50%. The noise texture is generated once
+and reused. There is no
 temporal history or full-resolution volume march. A bounded flat cloud layer
 is an approximation and needs visual tuning, especially around mountains and
 when flying through clouds.
+
+The cloud motion update removes pixel-hashed jitter, which was fixed to the
+screen and crawled over the cloud field when panning. Rays use deterministic
+midpoints across the entire visible interval; the old 250-metre step cap could
+omit the far end of shallow rays. RGB now packs three independently seeded,
+periodic value-noise fields with quintic interpolation, generated once on the
+CPU. One filtered lookup replaces three independent voxel-noise lookups per
+density sample, including in the shared scenery-shadow field. No temporal
+accumulation means there is no history ghosting; residual undersampling can
+still occur at distant edges. Daylight cloud ambient light is brighter, and
+the bloom threshold excludes ordinary sky/foliage to retain scene contrast.
+Higher resolution increases GPU work; reduced texture sampling does not
+establish a net frame-time improvement on native hardware.
 
 Water uses animated metre-based normals, Fresnel reflection and sunlight.
 High renders the prepared opaque scenery, sky and cloud volume into a
@@ -67,6 +83,15 @@ The graphics runner operates through Wine with Windows Desktop Runtime and an
 Xorg display. These are synthetic render checks; they are not proof of native
 Windows performance or reference-scene appearance. The existing CPU runner
 also checks sorting and bounded atmosphere/weather parameters.
+
+The cloud-motion regression renders the same world rays with a one-pixel
+off-axis camera shift and compares aligned RGB pixels. In the fixed fixture
+under Wine, the previous renderer measured 0.668 mean error in 8-bit units,
+versus 0.191 for this update; the 0.4 threshold rejects the previous version.
+This isolates screen-dependent sampling changes rather than treating genuine
+cloud motion as an error. Repeatability, clear sky, daylight brightness and
+25/50/100% resource resizing are checked too. The exported sky images are
+synthetic fixtures, not proof of a matching route screenshot or measured FPS.
 
 Północna Polska (December 2023), its Global/Sound package and matching timetable
 stock were downloaded from PKOR and extracted using the RAR decoder from 7-Zip.

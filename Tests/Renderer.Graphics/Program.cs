@@ -11,13 +11,19 @@ internal static class Program
     [STAThread]
     static void Main(string[] args)
     {
+        try { Run(args); }
+        catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
+    }
+
+    static void Run(string[] args)
+    {
         using var form = new Form { ClientSize = new System.Drawing.Size(256, 128) };
         using var device = new GraphicsDevice(GraphicsAdapter.DefaultAdapter, GraphicsProfile.HiDef,
             new PresentationParameters { DeviceWindowHandle = form.Handle, BackBufferWidth = 256, BackBufferHeight = 128,
                 BackBufferFormat = SurfaceFormat.Color, DepthStencilFormat = DepthFormat.Depth24, IsFullScreen = false });
         Console.WriteLine("Graphics adapter: " + GraphicsAdapter.DefaultAdapter.Description);
         using var process = new EnvironmentPostProcess(device);
-        using var scene = new RenderTarget2D(device, 256, 128, false, SurfaceFormat.Color, DepthFormat.None);
+        using var scene = new RenderTarget2D(device, 256, 128, false, SurfaceFormat.Color, DepthFormat.None, 0, RenderTargetUsage.PreserveContents);
         using var batch = new SpriteBatch(device);
         using var white = new Texture2D(device, 1, 1);
         white.SetData(new[] { Color.White });
@@ -73,5 +79,6 @@ internal static class Program
         using (var file = File.Create(Path.ChangeExtension(output,"clouds.png"))) scene.SaveAsPng(file,256,128);
         Console.WriteLine("PASS: compiled 3D cloud integration and depth occlusion.");
         SceneCheck.Run(device);
+        CloudQualityCheck.Run(device, output);
     }
 }

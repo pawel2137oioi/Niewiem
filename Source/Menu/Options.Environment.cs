@@ -11,6 +11,7 @@ namespace Menu
         CheckBox environmentSunGlare;
         NumericUpDown environmentGroundFog;
         NumericUpDown environmentFogHeight;
+        NumericUpDown environmentCloudResolution;
         CheckBox environmentColorGrading, environmentBloom, environmentWaterReflections, environmentVolumetricClouds;
         bool applyBalancedShadowSettings;
 
@@ -72,12 +73,19 @@ namespace Menu
             layout.Controls.Add(environmentWaterReflections, 1, 7);
             environmentVolumetricClouds = new CheckBox { AutoSize = true, Text = catalog.GetString("Volumetric clouds (High)"), Checked = Settings.EnvironmentVolumetricClouds };
             layout.Controls.Add(environmentVolumetricClouds, 1, 8);
+            environmentCloudResolution = new NumericUpDown
+            {
+                Minimum = 25, Maximum = 100, Increment = 25, Width = 90,
+                Value = Math.Clamp(Settings.EnvironmentCloudResolution, 25, 100),
+            };
+            layout.Controls.Add(new Label { AutoSize = true, Text = catalog.GetString("Cloud resolution (%)") }, 0, 9);
+            layout.Controls.Add(environmentCloudResolution, 1, 9);
             var description = new Label
             {
                 AutoSize = true, MaximumSize = new Size(540, 0), Margin = new Padding(0, 16, 0, 0),
                 Text = catalog.GetString("The new renderer uses HDR scene targets, filmic colors, bloom, FXAA, shaded vegetation and reflective water. High adds depth-aware volumetric clouds with self-shadowing, moving cloud shadows and half-resolution scene reflections in water. Clouds follow the current weather. HUD colors are preserved; filmic processing is disabled in the 2D cab view. Requires DirectX feature level 10.0 or newer. MSTS environments use the original renderer. Route geometry and textures still affect the result."),
             };
-            layout.Controls.Add(description, 0, 9);
+            layout.Controls.Add(description, 0, 10);
             layout.SetColumnSpan(description, 2);
             var preset = new Button
             {
@@ -91,6 +99,7 @@ namespace Menu
                 environmentSunGlare.Checked = true;
                 environmentColorGrading.Checked = environmentBloom.Checked = environmentWaterReflections.Checked = true;
                 environmentVolumetricClouds.Checked = true;
+                environmentCloudResolution.Value = 25;
                 checkUseMSTSEnv.Checked = false;
                 environmentGroundFog.Value = 35;
                 environmentFogHeight.Value = 40;
@@ -105,7 +114,7 @@ namespace Menu
                 numericPerformanceTunerTarget.Enabled = labelPerformanceTunerTarget.Enabled = true;
                 applyBalancedShadowSettings = true;
             };
-            layout.Controls.Add(preset, 0, 10);
+            layout.Controls.Add(preset, 0, 11);
             layout.SetColumnSpan(preset, 2);
             var highPreset = new Button { AutoSize = true, Text = catalog.GetString("Apply High visual preset"), Margin = new Padding(0, 8, 0, 0) };
             highPreset.Click += (sender, args) =>
@@ -113,10 +122,11 @@ namespace Menu
                 preset.PerformClick();
                 environmentQuality.SelectedIndex = 2;
                 environmentIntensity.Value = 100;
+                environmentCloudResolution.Value = 50;
                 checkPerformanceTuner.Checked = false;
                 checkShadowAllShapes.Checked = true;
             };
-            layout.Controls.Add(highPreset, 0, 11);
+            layout.Controls.Add(highPreset, 0, 12);
             layout.SetColumnSpan(highPreset, 2);
             environmentQuality.SelectedIndexChanged += (sender, args) =>
             {
@@ -140,6 +150,7 @@ namespace Menu
             Settings.EnvironmentBloom = environmentBloom.Checked;
             Settings.EnvironmentWaterReflections = environmentWaterReflections.Checked;
             Settings.EnvironmentVolumetricClouds = environmentVolumetricClouds.Checked;
+            Settings.EnvironmentCloudResolution = (int)environmentCloudResolution.Value;
             if (applyBalancedShadowSettings)
             {
                 // Defer mutation until OK; Cancel must preserve the user's settings.
