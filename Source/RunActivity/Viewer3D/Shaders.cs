@@ -43,6 +43,28 @@ namespace Orts.Viewer3D
     [CallOnThread("Render")]
     public class SceneryShader : Shader
     {
+        internal EffectTechnique ImageTechnique { get; private set; }
+        internal EffectTechnique TerrainTechnique { get; private set; }
+        internal EffectTechnique TransferTechnique { get; private set; }
+        internal EffectTechnique ForestTechnique { get; private set; }
+        internal EffectTechnique VegetationTechnique { get; private set; }
+        internal EffectTechnique DarkShadeTechnique { get; private set; }
+        internal EffectTechnique HalfBrightTechnique { get; private set; }
+        internal EffectTechnique FullBrightTechnique { get; private set; }
+        internal bool AdvancedEnvironment { get; private set; }
+
+        internal void ConfigureTechniques(string suffix)
+        {
+            AdvancedEnvironment = suffix == "Advanced";
+            ImageTechnique = Techniques["Image" + suffix];
+            TerrainTechnique = Techniques["Terrain" + suffix];
+            TransferTechnique = Techniques["Transfer" + suffix];
+            ForestTechnique = Techniques[AdvancedEnvironment ? "ForestAdvanced" : "Forest"];
+            VegetationTechnique = Techniques["Vegetation" + suffix];
+            DarkShadeTechnique = Techniques["DarkShade" + suffix];
+            HalfBrightTechnique = Techniques["HalfBright" + suffix];
+            FullBrightTechnique = Techniques["FullBright" + suffix];
+        }
         readonly EffectParameter world;
         readonly EffectParameter view;
         readonly EffectParameter projection;
@@ -69,6 +91,9 @@ namespace Orts.Viewer3D
         readonly EffectParameter overlayTexture;
         readonly EffectParameter referenceAlpha;
         readonly EffectParameter overlayScale;
+        readonly EffectParameter environment;
+        readonly EffectParameter environmentWeather;
+        readonly EffectParameter environmentGroundLevel;
 
         Vector3 _eyeVector;
         Vector4 _zBias_Lighting;
@@ -188,6 +213,12 @@ namespace Orts.Viewer3D
         public int ReferenceAlpha { set { referenceAlpha.SetValue(value / 255f); } }
 
         public float OverlayScale { set { overlayScale.SetValue(value); } }
+        internal void SetEnvironment(EnvironmentParameters value, float groundLevel)
+        {
+            environment.SetValue(new Vector4(value.Strength, value.Daylight, value.ClearSky, value.HighQuality));
+            environmentWeather.SetValue(new Vector4(value.Twilight, value.SunVisibility, value.GroundFogDensity, value.InverseGroundFogHeight));
+            environmentGroundLevel.SetValue(groundLevel);
+        }
 
         public SceneryShader(GraphicsDevice graphicsDevice)
             : base(graphicsDevice, "SceneryShader")
@@ -223,6 +254,9 @@ namespace Orts.Viewer3D
             overlayTexture = Parameters["OverlayTexture"];
             referenceAlpha = Parameters["ReferenceAlpha"];
             overlayScale = Parameters["OverlayScale"];
+            environment = Parameters["Environment"];
+            environmentWeather = Parameters["EnvironmentWeather"];
+            environmentGroundLevel = Parameters["EnvironmentGroundLevel"];
         }
     }
 
@@ -270,6 +304,17 @@ namespace Orts.Viewer3D
     [CallOnThread("Render")]
     public class SkyShader : Shader
     {
+        internal EffectTechnique SkyTechnique { get; private set; }
+        internal EffectTechnique CloudsTechnique { get; private set; }
+
+        internal void ConfigureEnvironment(bool enabled)
+        {
+            SkyTechnique = Techniques[enabled ? "SkyAdvanced" : "Sky"];
+            CloudsTechnique = Techniques[enabled ? "CloudsAdvanced" : "Clouds"];
+        }
+        readonly EffectParameter environment;
+        readonly EffectParameter environmentSunGlare;
+        readonly EffectParameter environmentWeather;
         readonly EffectParameter worldViewProjection;
         readonly EffectParameter lightVector;
         readonly EffectParameter time;
@@ -299,7 +344,7 @@ namespace Orts.Viewer3D
                 cloudColor.SetValue(Day2Night(0.2f, -0.2f, 0.15f, value.Y));
                 var skyColor1 = Day2Night(0.25f, -0.25f, -0.5f, value.Y);
                 var skyColor2 = MathHelper.Clamp(skyColor1 + 0.55f, 0, 1);
-                var skyColor3 = 0.001f / (0.8f * Math.Abs(value.Y - 0.1f));
+                var skyColor3 = 0.001f / (0.8f * Math.Max(0.02f, Math.Abs(value.Y - 0.1f)));
                 skyColor.SetValue(new Vector3(skyColor1, skyColor2, skyColor3)); 
 
                 // Fade moon during daylight
@@ -351,6 +396,12 @@ namespace Orts.Viewer3D
         public Vector4 CloudScalePosition { set => cloudScalePosition.SetValue(value); }
 
         public float MoonScale { get; set; }
+        internal void SetEnvironment(EnvironmentParameters value, bool sunGlare)
+        {
+            environment.SetValue(new Vector4(value.Strength, value.Daylight, value.ClearSky, value.HighQuality));
+            environmentSunGlare.SetValue(sunGlare ? 1f : 0f);
+            environmentWeather.SetValue(new Vector4(value.Twilight, value.SunVisibility, value.GroundFogDensity, value.InverseGroundFogHeight));
+        }
 
         public Texture2D SkyMapTexture { set { skyMapTexture.SetValue(value); } }
         public Texture2D StarMapTexture { set { starMapTexture.SetValue(value); } }
@@ -398,6 +449,9 @@ namespace Orts.Viewer3D
             moonMapTexture = Parameters["MoonMapTexture"];
             moonMaskTexture = Parameters["MoonMaskTexture"];
             cloudMapTexture = Parameters["CloudMapTexture"];
+            environment = Parameters["Environment"];
+            environmentSunGlare = Parameters["EnvironmentSunGlare"];
+            environmentWeather = Parameters["EnvironmentWeather"];
         }
         
 

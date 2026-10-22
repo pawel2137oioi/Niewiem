@@ -281,6 +281,10 @@ namespace Orts.Viewer3D
             PopupWindowShader = new PopupWindowShader(viewer, viewer.RenderProcess.GraphicsDevice);
             PrecipitationShader = new PrecipitationShader(viewer.RenderProcess.GraphicsDevice);
             SceneryShader = new SceneryShader(viewer.RenderProcess.GraphicsDevice);
+            SceneryShader.ConfigureTechniques(EnvironmentParameters.SelectTechniqueSuffix(
+                viewer.Settings.EnvironmentQuality, viewer.Settings.UseMSTSEnv,
+                viewer.Settings.IsDirectXFeatureLevelIncluded(ORTS.Settings.UserSettings.DirectXFeature.Level10_0),
+                viewer.Settings.IsDirectXFeatureLevelIncluded(ORTS.Settings.UserSettings.DirectXFeature.Level9_3)));
             var microtexPath = viewer.Simulator.RoutePath + @"\TERRTEX\microtex";
             try
             {
@@ -304,6 +308,7 @@ namespace Orts.Viewer3D
             }
             ShadowMapShader = new ShadowMapShader(viewer.RenderProcess.GraphicsDevice);
             SkyShader = new SkyShader(viewer.RenderProcess.GraphicsDevice);
+            SkyShader.ConfigureEnvironment(SceneryShader.AdvancedEnvironment);
             DebugShader = new DebugShader(viewer.RenderProcess.GraphicsDevice);
             CabShader = new CabShader(viewer.RenderProcess.GraphicsDevice, Vector4.One, Vector4.One, Vector3.One, Vector3.One);
 
@@ -503,6 +508,18 @@ namespace Orts.Viewer3D
                 sunDirection = Viewer.World.MSTSSky.mstsskysolarDirection;
 
             SceneryShader.SetLightVector_ZFar(sunDirection, Viewer.Settings.ViewingDistance);
+            var cameraLocation = Viewer.Camera.CameraWorldLocation;
+            // Only sample loaded terrain; never trigger tile I/O from the render thread.
+            var groundAvailable = SceneryShader.AdvancedEnvironment && Viewer.Settings.EnvironmentGroundFog > 0
+                && Viewer.Tiles.GetTile(cameraLocation.TileX, cameraLocation.TileZ) != null;
+            var groundLevel = groundAvailable ? Viewer.Tiles.GetElevation(cameraLocation) : 0;
+            SceneryShader.SetEnvironment(new EnvironmentParameters(
+                Viewer.Settings.EnvironmentQuality, Viewer.Settings.EnvironmentIntensity,
+                sunDirection.Y, Viewer.Settings.UseMSTSEnv ? Viewer.World.MSTSSky.mstsskyovercastFactor : Viewer.Simulator.Weather.CloudCoverFactor,
+                Viewer.Settings.UseMSTSEnv,
+                Viewer.Simulator.Weather.PrecipitationIntensityPPSPM2 / PrecipitationViewer.MaxIntensityPPSPM2,
+                Viewer.Simulator.Weather.VisibilityM,
+                groundAvailable ? Viewer.Settings.EnvironmentGroundFog : 0, Viewer.Settings.EnvironmentFogHeight), groundLevel);
 
             // Headlight illumination
             if (Viewer.PlayerLocomotiveViewer != null
@@ -819,12 +836,11 @@ namespace Orts.Viewer3D
             graphicsDevice.RasterizerState = RasterizerState.CullCounterClockwise;
 
             var shader = Viewer.MaterialManager.SceneryShader;
-            var level9_3 = Viewer.Settings.IsDirectXFeatureLevelIncluded(ORTS.Settings.UserSettings.DirectXFeature.Level9_3);
-            if (ShaderPassesDarkShade == null) ShaderPassesDarkShade = shader.Techniques[level9_3 ? "DarkShadeLevel9_3" : "DarkShadeLevel9_1"].Passes.GetEnumerator();
-            if (ShaderPassesFullBright == null) ShaderPassesFullBright = shader.Techniques[level9_3 ? "FullBrightLevel9_3" : "FullBrightLevel9_1"].Passes.GetEnumerator();
-            if (ShaderPassesHalfBright == null) ShaderPassesHalfBright = shader.Techniques[level9_3 ? "HalfBrightLevel9_3" : "HalfBrightLevel9_1"].Passes.GetEnumerator();
-            if (ShaderPassesImage == null) ShaderPassesImage = shader.Techniques[level9_3 ? "ImageLevel9_3" : "ImageLevel9_1"].Passes.GetEnumerator();
-            if (ShaderPassesVegetation == null) ShaderPassesVegetation = shader.Techniques[level9_3 ? "VegetationLevel9_3" : "VegetationLevel9_1"].Passes.GetEnumerator();
+            if (ShaderPassesDarkShade == null) ShaderPassesDarkShade = shader.DarkShadeTechnique.Passes.GetEnumerator();
+            if (ShaderPassesFullBright == null) ShaderPassesFullBright = shader.FullBrightTechnique.Passes.GetEnumerator();
+            if (ShaderPassesHalfBright == null) ShaderPassesHalfBright = shader.HalfBrightTechnique.Passes.GetEnumerator();
+            if (ShaderPassesImage == null) ShaderPassesImage = shader.ImageTechnique.Passes.GetEnumerator();
+            if (ShaderPassesVegetation == null) ShaderPassesVegetation = shader.VegetationTechnique.Passes.GetEnumerator();
 
             shader.LightingDiffuse = (Options & SceneryMaterialOptions.Diffuse) != 0 ? 1 : 0;
 
@@ -877,24 +893,24 @@ namespace Orts.Viewer3D
             switch (Options & SceneryMaterialOptions.ShaderMask)
             {
                 case SceneryMaterialOptions.ShaderImage:
-                    shader.CurrentTechnique = shader.Techniques[level9_3 ? "ImageLevel9_3" : "ImageLevel9_1"];
+                    shader.CurrentTechnique = shader.ImageTechnique;
                     ShaderPasses = ShaderPassesImage;
                     break;
                 case SceneryMaterialOptions.ShaderDarkShade:
-                    shader.CurrentTechnique = shader.Techniques[level9_3 ? "DarkShadeLevel9_3" : "DarkShadeLevel9_1"];
+                    shader.CurrentTechnique = shader.DarkShadeTechnique;
                     ShaderPasses = ShaderPassesDarkShade;
                     break;
                 case SceneryMaterialOptions.ShaderHalfBright:
-                    shader.CurrentTechnique = shader.Techniques[level9_3 ? "HalfBrightLevel9_3" : "HalfBrightLevel9_1"];
+                    shader.CurrentTechnique = shader.HalfBrightTechnique;
                     ShaderPasses = ShaderPassesHalfBright;
                     break;
                 case SceneryMaterialOptions.ShaderFullBright:
-                    shader.CurrentTechnique = shader.Techniques[level9_3 ? "FullBrightLevel9_3" : "FullBrightLevel9_1"];
+                    shader.CurrentTechnique = shader.FullBrightTechnique;
                     ShaderPasses = ShaderPassesFullBright;
                     break;
                 case SceneryMaterialOptions.ShaderVegetation:
                 case SceneryMaterialOptions.ShaderVegetation | SceneryMaterialOptions.ShaderFullBright:
-                    shader.CurrentTechnique = shader.Techniques[level9_3 ? "VegetationLevel9_3" : "VegetationLevel9_1"];
+                    shader.CurrentTechnique = shader.VegetationTechnique;
                     ShaderPasses = ShaderPassesVegetation;
                     break;
                 default:

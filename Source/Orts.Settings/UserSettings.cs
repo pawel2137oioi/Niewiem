@@ -182,6 +182,17 @@ namespace ORTS.Settings
         public int DayAmbientLight { get; set; }
         [Default(AntiAliasingMethod.MSAA2x)]
         public int AntiAliasing { get; set; }
+        // 0: original rendering, 1: balanced atmosphere, 2: per-pixel atmospheric scattering.
+        [Default(1)]
+        public int EnvironmentQuality { get; set; }
+        [Default(70)]
+        public int EnvironmentIntensity { get; set; }
+        [Default(true)]
+        public bool EnvironmentSunGlare { get; set; }
+        [Default(35)]
+        public int EnvironmentGroundFog { get; set; }
+        [Default(40)]
+        public int EnvironmentFogHeight { get; set; }
 
         // Simulation settings:
         [Default(false)]

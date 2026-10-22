@@ -357,9 +357,9 @@ namespace Orts.Viewer3D
             MoonMask = SharedTextureManager.LoadInternal(Viewer.RenderProcess.GraphicsDevice, System.IO.Path.Combine(Viewer.ContentPath, "MoonMask.png"));
             CloudTexture = SharedTextureManager.LoadInternal(Viewer.RenderProcess.GraphicsDevice, System.IO.Path.Combine(Viewer.ContentPath, "Clouds01.png"));
 
-            ShaderPassesSky = SkyShader.Techniques["Sky"].Passes.GetEnumerator();
+            ShaderPassesSky = SkyShader.SkyTechnique.Passes.GetEnumerator();
             ShaderPassesMoon = SkyShader.Techniques["Moon"].Passes.GetEnumerator();
-            ShaderPassesClouds = SkyShader.Techniques["Clouds"].Passes.GetEnumerator();
+            ShaderPassesClouds = SkyShader.CloudsTechnique.Passes.GetEnumerator();
 
             SkyShader.SkyMapTexture = SkyTexture;
             SkyShader.StarMapTexture = StarTextureN;
@@ -378,6 +378,12 @@ namespace Orts.Viewer3D
 
             SkyShader.Random = Viewer.World.Sky.MoonPhase; // Keep setting this before LightVector for the preshader to work correctly
             SkyShader.LightVector = Viewer.World.Sky.SolarDirection;
+            SkyShader.SetEnvironment(new EnvironmentParameters(
+                Viewer.Settings.EnvironmentQuality, Viewer.Settings.EnvironmentIntensity,
+                Viewer.World.Sky.SolarDirection.Y, Viewer.Simulator.Weather.CloudCoverFactor, Viewer.Settings.UseMSTSEnv,
+                Viewer.Simulator.Weather.PrecipitationIntensityPPSPM2 / PrecipitationViewer.MaxIntensityPPSPM2,
+                Viewer.Simulator.Weather.VisibilityM),
+                Viewer.Settings.EnvironmentSunGlare);
             SkyShader.Time = (float)Viewer.Simulator.ClockTime / 100000;
             SkyShader.MoonScale = SkyPrimitive.RadiusM / 20;
             SkyShader.Overcast = Viewer.Simulator.Weather.CloudCoverFactor;
@@ -395,7 +401,7 @@ namespace Orts.Viewer3D
             SkyShader.SetViewMatrix(ref XNAViewMatrix);
 
             // Sky dome
-            SkyShader.CurrentTechnique = SkyShader.Techniques["Sky"];
+            SkyShader.CurrentTechnique = SkyShader.SkyTechnique;
             Viewer.World.Sky.Primitive.Element = SkyPrimitive.SkyElement.Sky;
             graphicsDevice.BlendState = BlendState.Opaque;
             graphicsDevice.DepthStencilState = DepthStencilState.None;
@@ -431,7 +437,7 @@ namespace Orts.Viewer3D
             }
 
             // Clouds
-            SkyShader.CurrentTechnique = SkyShader.Techniques["Clouds"];
+            SkyShader.CurrentTechnique = SkyShader.CloudsTechnique;
             Viewer.World.Sky.Primitive.Element = SkyPrimitive.SkyElement.Clouds;
             graphicsDevice.RasterizerState = RasterizerState.CullCounterClockwise;
 

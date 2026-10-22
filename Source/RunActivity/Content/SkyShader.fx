@@ -42,6 +42,9 @@ texture  MoonMapTexture;
 texture  MoonMaskTexture;
 texture  CloudMapTexture;
 
+#include "Environment.fxh"
+float EnvironmentSunGlare;
+
 sampler SkyMapSampler = sampler_state
 {
 	Texture = (SkyMapTexture);
@@ -166,7 +169,7 @@ float3 ContrastSaturationBrightness(float3 color, float brt, float sat, float co
 	return conColor;
 }
 
-float4 PSSky(VERTEX_OUTPUT In) : COLOR
+float4 PSSky(uniform bool Advanced, VERTEX_OUTPUT In) : COLOR
 {
 	// Get the color information for the current pixel
 	float4 skyColor = tex2D(SkyMapSampler, In.TexCoord);
@@ -188,11 +191,18 @@ float4 PSSky(VERTEX_OUTPUT In) : COLOR
 		}
 	
 	// Fogging
-	skyColor.rgb = lerp(skyColor.rgb, FogColor.rgb, saturate((1 - In.Normal.y) * Fog.x));
+	skyColor.rgb = lerp(skyColor.rgb, Advanced ? EnvironmentHorizonColor(FogColor.rgb) : FogColor.rgb, saturate((1 - In.Normal.y) * Fog.x));
 	
 	// Calculate angular difference between LightVector and vertex normal, radians
 	float dotproduct = dot(LightVector.xyz, In.Normal);
-	float angleRcp = 1 / acos(dotproduct * LightVector.w / length(In.Normal));
+    float sunDot = dotproduct * LightVector.w / length(In.Normal);
+    float angleRcp = 1 / acos(sunDot);
+    // Keep the compact legacy shader within its 64-instruction limit.
+    if (Advanced) {
+        sunDot = clamp(sunDot, -1, 1);
+        angleRcp = 1 / max(acos(sunDot), 0.01);
+        angleRcp *= lerp(1, EnvironmentWeather.y, Environment.x);
+    }
 	
 	// Sun glow
 	// Coefficients selected by the author to achieve the desired appearance - fot limits the effect
@@ -229,6 +239,17 @@ float4 PSSky(VERTEX_OUTPUT In) : COLOR
 		}
 	}
 	
+    if (Advanced) {
+        float horizon = saturate(1 - abs(normalize(In.Normal).y) * 5);
+        float towardSun = 0.2 + 0.8 * saturate(sunDot);
+        float3 twilightColor = skyColor.rgb * float3(1.4, 0.7, 0.3) + float3(0.12, 0.035, 0.006);
+        skyColor.rgb = lerp(skyColor.rgb, twilightColor, horizon * towardSun * EnvironmentTwilightStrength());
+        float lowSun = 1 - saturate(LightVector.y * 3);
+        float3 haloColor = lerp(float3(1.0, 0.96, 0.86), float3(1.0, 0.68, 0.38), lowSun);
+        float halo = pow(saturate(sunDot), 64) * 0.15 + pow(saturate(sunDot), 2048) * 0.5;
+        skyColor.rgb += haloColor * halo * EnvironmentDayStrength() * Environment.z * EnvironmentWeather.y * EnvironmentSunGlare;
+    }
+
 	// Keep alpha opague
 	skyColor.a = 1.0;
 	return skyColor;
@@ -253,14 +274,14 @@ float4 PSMoon(VERTEX_OUTPUT In) : COLOR
 	return moonColor;
 }
 
-float4 PSClouds(VERTEX_OUTPUT In) : COLOR
+float4 PSClouds(uniform bool Advanced, VERTEX_OUTPUT In) : COLOR
 {
 	float2 TexCoord = In.TexCoord.xy * CloudScalePosition.xy - CloudScalePosition.zw;
 	float4 cloudColor = tex2D(CloudMapSampler, TexCoord);
 	float alpha = cloudColor.a;
 	
     // Fogging
-    cloudColor.rgb = lerp(cloudColor.rgb, FogColor.rgb, saturate((1 - In.Normal.y) * Fog.x));
+    cloudColor.rgb = lerp(cloudColor.rgb, Advanced ? EnvironmentHorizonColor(FogColor.rgb) : FogColor.rgb, saturate((1 - In.Normal.y) * Fog.x));
 	
     // Adjust amount of overcast by adjusting alpha
 	if (Overcast.w)
@@ -277,9 +298,21 @@ float4 PSClouds(VERTEX_OUTPUT In) : COLOR
 
 	// Adjust cloud color brightness for time of day
 	cloudColor *= CloudColor;
+    if (Advanced) {
+        // High quality adds a bounded sun-facing highlight at thin cloud edges.
+        float sunDot = saturate(dot(normalize(In.Normal), LightVector.xyz * LightVector.w));
+        cloudColor.rgb += float3(1.0, 0.96, 0.86) * pow(sunDot, 8) * (1 - saturate(alpha))
+            * 0.18 * EnvironmentAtmosphereStrength() * Environment.z * EnvironmentWeather.y * Environment.w;
+    }
+
 	cloudColor.a = alpha;
 	return cloudColor;
 }
+
+float4 PSSkyLegacy(VERTEX_OUTPUT In) : COLOR { return PSSky(false, In); }
+float4 PSSkyAdvanced(VERTEX_OUTPUT In) : COLOR { return PSSky(true, In); }
+float4 PSCloudsLegacy(VERTEX_OUTPUT In) : COLOR { return PSClouds(false, In); }
+float4 PSCloudsAdvanced(VERTEX_OUTPUT In) : COLOR { return PSClouds(true, In); }
 
 ///////////////////////////    T E C H N I Q U E S    ///////////////////////////////
 
@@ -288,7 +321,7 @@ float4 PSClouds(VERTEX_OUTPUT In) : COLOR
 technique Sky {
    pass Pass_0 {
 	  VertexShader = compile vs_4_0_level_9_1 VSSky();
-	  PixelShader = compile ps_4_0_level_9_1 PSSky();
+	  PixelShader = compile ps_4_0_level_9_1 PSSkyLegacy();
    }
 }
 
@@ -302,6 +335,20 @@ technique Moon {
 technique Clouds {
    pass Pass_0 {
 	  VertexShader = compile vs_4_0_level_9_1 VSSky();
-	  PixelShader = compile ps_4_0_level_9_1 PSClouds();
+	  PixelShader = compile ps_4_0_level_9_1 PSCloudsLegacy();
    }
+}
+
+technique SkyAdvanced {
+    pass Pass_0 {
+        VertexShader = compile vs_4_0 VSSky();
+        PixelShader = compile ps_4_0 PSSkyAdvanced();
+    }
+}
+
+technique CloudsAdvanced {
+    pass Pass_0 {
+        VertexShader = compile vs_4_0 VSSky();
+        PixelShader = compile ps_4_0 PSCloudsAdvanced();
+    }
 }

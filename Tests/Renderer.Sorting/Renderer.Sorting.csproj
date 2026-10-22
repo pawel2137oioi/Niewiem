@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net6.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Only use managed Matrix/Vector math; do not import Windows desktop runtime dependencies. -->
+    <PackageDownload Include="MonoGame.Framework.WindowsDX" Version="[3.8.1.303]" />
+    <Reference Include="MonoGame.Framework">
+      <HintPath>$(NuGetPackageRoot)/monogame.framework.windowsdx/3.8.1.303/lib/net6.0-windows7.0/MonoGame.Framework.dll</HintPath>
+    </Reference>
+    <Compile Include="../../Source/RunActivity/Viewer3D/RenderItem.cs" Link="RenderItem.cs" />
+    <Compile Include="../../Source/RunActivity/Viewer3D/EnvironmentParameters.cs" Link="EnvironmentParameters.cs" />
+  </ItemGroup>
+</Project>

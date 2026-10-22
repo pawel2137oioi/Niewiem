@@ -55,6 +55,7 @@ namespace Menu
             Localizer.Localize(this, catalog);
 
             Settings = settings;
+            InitializeEnvironmentOptions();
             UpdateManager = updateManager;
             TelemetryManager = telemetryManager;
             BaseDocumentationUrl = baseDocumentationUrl;
@@ -443,6 +444,7 @@ namespace Menu
             Settings.DayAmbientLight = (int)trackDayAmbientLight.Value;
             Settings.DoubleWire = checkDoubleWire.Checked;
             Settings.AntiAliasing = trackAntiAliasing.Value;
+            SaveEnvironmentOptions();
 
             // Simulation tab
             Settings.SimpleControlPhysics = checkSimpleControlsPhysics.Checked;
