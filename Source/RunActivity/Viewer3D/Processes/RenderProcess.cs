@@ -32,6 +32,10 @@ namespace Orts.Viewer3D.Processes
     public class RenderProcess
     {
         public const int ShadowMapCountMaximum = 4;
+        internal EnvironmentPostProcess EnvironmentPostProcess;
+        internal WaterReflection WaterReflection;
+        internal VolumetricClouds VolumetricClouds;
+        internal bool DrawingWaterReflection;
 
         public Point DisplaySize { get; private set; }
         public GraphicsDevice GraphicsDevice { get { return Game.GraphicsDevice; } }
@@ -44,6 +48,8 @@ namespace Orts.Viewer3D.Processes
         readonly Form GameForm;
         readonly Point GameWindowSize;
         readonly WatchdogToken WatchdogToken;
+        bool rendererWarmed;
+        internal void ReportProgress() => WatchdogToken.Ping();
 
         public GraphicsDeviceManager GraphicsDeviceManager { get; private set; }
 
@@ -315,20 +321,31 @@ namespace Orts.Viewer3D.Processes
         [ThreadName("Render")]
         internal void Draw()
         {
-            if (Debugger.IsAttached)
+            var factor = WatchdogToken.SpecialDispensationFactor;
+            var warmup = CurrentFrame.IsSceneFrame && !rendererWarmed && Game.Settings.EnvironmentQuality > 0;
+            if (warmup) WatchdogToken.SpecialDispensationFactor = Math.Max(6, factor);
+            try
             {
-                CurrentFrame.Draw(Game.GraphicsDevice);
-            }
-            else
-            {
-                try
+                if (Debugger.IsAttached)
                 {
                     CurrentFrame.Draw(Game.GraphicsDevice);
                 }
-                catch (Exception error)
+                else
                 {
-                    Game.ProcessReportError(error);
+                    try
+                    {
+                        CurrentFrame.Draw(Game.GraphicsDevice);
+                    }
+                    catch (Exception error)
+                    {
+                        Game.ProcessReportError(error);
+                    }
                 }
+            }
+            finally
+            {
+                if (warmup) rendererWarmed = true;
+                WatchdogToken.SpecialDispensationFactor = factor;
             }
         }
 
@@ -359,6 +376,13 @@ namespace Orts.Viewer3D.Processes
         internal void Stop()
         {
             Game.WatchdogProcess.Unregister(WatchdogToken);
+            EnvironmentPostProcess?.Dispose();
+            WaterReflection?.Dispose();
+            VolumetricClouds?.Dispose();
+            CurrentFrame?.RenderSurface?.Dispose();
+            NextFrame?.RenderSurface?.Dispose();
+            CurrentFrame?.SceneDepth?.Dispose();
+            NextFrame?.SceneDepth?.Dispose();
 
             // these run in the Renderer thread, and thus cannot be disposed in GameStateViewer3D
             if (Program.MapForm != null)

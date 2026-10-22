@@ -15,6 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Open Rails.  If not, see <http://www.gnu.org/licenses/>.
 
+using System;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
@@ -23,7 +24,7 @@ namespace ORTS.Common
 {
     public static class ApplicationInfo
     {
-        public static string ProcessFile => Process.GetCurrentProcess().MainModule.FileName;
+        public static string ProcessFile => Environment.ProcessPath ?? Process.GetCurrentProcess().MainModule.FileName;
         public static string ProcessDirectory => Path.GetDirectoryName(ProcessFile);
         static FileVersionInfo VersionInfo => FileVersionInfo.GetVersionInfo(ProcessFile);
         // Apphosts built on a non-Windows system can lack native version resources.

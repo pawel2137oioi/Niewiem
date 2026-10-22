@@ -169,6 +169,9 @@ namespace Orts.Viewer3D
             if (ShaderPasses == null) ShaderPasses = shader.CurrentTechnique.Passes.GetEnumerator();
             shader.ImageTexture = Texture;
             shader.ReferenceAlpha = 10;
+            shader.LightingDiffuse = 1;
+            shader.LightingSpecular = 0;
+            shader.ImageTextureIsNight = false;
 
             graphicsDevice.BlendState = BlendState.NonPremultiplied;
             graphicsDevice.DepthStencilState = DepthStencilState.DepthRead;

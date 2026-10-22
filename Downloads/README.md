@@ -1,5 +1,31 @@
 # Testowa wersja Open Rails dla Windows x64
 
+## Modern Renderer preview
+
+[Pobierz nowy prototyp renderera](https://github.com/pawel2137oioi/Niewiem/raw/refs/heads/codex/graphics-test-download/Downloads/OpenRails-ModernRenderer-preview.zip).
+
+Osobna paczka dodaje HDR, bloom, FXAA, chmury objetosciowe 3D, cienie chmur
+i odbicia sceny w wodzie. **To prototyp, nie gotowa wymiana calego silnika
+ani potwierdzony wyglad 1:1 ze screenami TSRE.** Modele i tekstury trasy
+pozostaja jej oryginalnymi zasobami. Wymaga Windows x64, DirectX 10+
+i .NET Desktop Runtime 6.0.36 x64.
+
+Rozpakuj do nowego folderu i uruchom OpenRails.exe. Dodaj zawartosc przez
+Content > Manually Installed > Add > Browse. Paczka startuje z High i sila 100.
+Obejrzyj widok 2/8; chmury wymagaja zachmurzenia (Ctrl i =/+ zwieksza je).
+Log jest w `Logs/OpenRailsLog.txt` obok EXE. Dokladne kroki sa w
+[instrukcji](ModernRenderer-URUCHOMIENIE.txt).
+
+Sprawdzono skompilowane shadery testami pikseli oraz uruchomienie Północnej
+Polski z EU07-465 przez Wine. Nie zmierzono 60 FPS na natywnym Windows/GPU.
+High dodaje koszt renderowania; Balanced pomija najdrozsze efekty.
+W testowej trasie pozostaja czarne powierzchnie i problemy wygladu wody;
+wystapilo tez jednorazowe zakonczenie przez watchdog renderera pod Wine.
+Zakres, testy i pozostale ograniczenia opisuje [raport](../Docs/Modern-Renderer.md).
+Suma SHA-256 jest w pliku obok ZIP-a. Dane PKOR nie sa zawarte w paczce.
+
+## Starsza paczka atmosfery v2
+
 [Pobierz ZIP](https://github.com/pawel2137oioi/Niewiem/raw/refs/heads/codex/graphics-test-download/Downloads/OpenRails-Windows-test.zip).
 
 Poprawiona paczka (v2): aplikacje EXE maja teraz typ Windows GUI oraz zasoby

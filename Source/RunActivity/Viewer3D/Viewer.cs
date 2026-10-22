@@ -771,6 +771,12 @@ namespace Orts.Viewer3D
             {
                 Trace.WriteLine(error);
             }
+            catch (PlatformNotSupportedException error)
+            {
+                // WMI is optional adapter telemetry. A missing native WMI bridge
+                // must not prevent a usable DirectX device from running the game.
+                Trace.TraceWarning("Adapter memory information is unavailable: {0}", error.Message);
+            }
         }
 
         [CallOnThread("Loader")]

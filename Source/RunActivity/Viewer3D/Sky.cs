@@ -422,7 +422,7 @@ namespace Orts.Viewer3D
             SkyShader.CurrentTechnique = SkyShader.Techniques["Moon"];
             Viewer.World.Sky.Primitive.Element = SkyPrimitive.SkyElement.Moon;
             graphicsDevice.BlendState = BlendState.NonPremultiplied;
-            graphicsDevice.RasterizerState = RasterizerState.CullClockwise;
+            graphicsDevice.RasterizerState = Viewer.RenderProcess.DrawingWaterReflection ? RasterizerState.CullNone : RasterizerState.CullClockwise;
 
             ShaderPassesMoon.Reset();
             while (ShaderPassesMoon.MoveNext())
@@ -437,9 +437,15 @@ namespace Orts.Viewer3D
             }
 
             // Clouds
+            if (Viewer.MaterialManager.SceneryShader.AdvancedEnvironment && Viewer.Settings.EnvironmentQuality >= 2
+                && Viewer.Settings.EnvironmentVolumetricClouds && Viewer.Settings.EnvironmentIntensity > 0 && !(Viewer.Camera is CabCamera))
+            {
+                graphicsDevice.RasterizerState = Viewer.RenderProcess.DrawingWaterReflection ? RasterizerState.CullNone : RasterizerState.CullCounterClockwise;
+                return; // The depth-aware volume pass draws these after opaque scenery.
+            }
             SkyShader.CurrentTechnique = SkyShader.CloudsTechnique;
             Viewer.World.Sky.Primitive.Element = SkyPrimitive.SkyElement.Clouds;
-            graphicsDevice.RasterizerState = RasterizerState.CullCounterClockwise;
+            graphicsDevice.RasterizerState = Viewer.RenderProcess.DrawingWaterReflection ? RasterizerState.CullNone : RasterizerState.CullCounterClockwise;
 
             ShaderPassesClouds.Reset();
             while (ShaderPassesClouds.MoveNext())

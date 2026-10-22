@@ -309,6 +309,7 @@ namespace Orts.Viewer3D
             ShadowMapShader = new ShadowMapShader(viewer.RenderProcess.GraphicsDevice);
             SkyShader = new SkyShader(viewer.RenderProcess.GraphicsDevice);
             SkyShader.ConfigureEnvironment(SceneryShader.AdvancedEnvironment);
+            Trace.WriteLine($"Environment renderer: {(SceneryShader.AdvancedEnvironment ? "Advanced" : "Original")}; quality={viewer.Settings.EnvironmentQuality}; intensity={viewer.Settings.EnvironmentIntensity}; MSTS={viewer.Settings.UseMSTSEnv}; DirectX={viewer.Settings.DirectXFeatureLevel}; grading={viewer.Settings.EnvironmentColorGrading}; bloom={viewer.Settings.EnvironmentBloom}; water reflections={viewer.Settings.EnvironmentWaterReflections}");
             DebugShader = new DebugShader(viewer.RenderProcess.GraphicsDevice);
             CabShader = new CabShader(viewer.RenderProcess.GraphicsDevice, Vector4.One, Vector4.One, Vector3.One, Vector3.One);
 
@@ -510,9 +511,18 @@ namespace Orts.Viewer3D
             SceneryShader.SetLightVector_ZFar(sunDirection, Viewer.Settings.ViewingDistance);
             var cameraLocation = Viewer.Camera.CameraWorldLocation;
             // Only sample loaded terrain; never trigger tile I/O from the render thread.
-            var groundAvailable = SceneryShader.AdvancedEnvironment && Viewer.Settings.EnvironmentGroundFog > 0
-                && Viewer.Tiles.GetTile(cameraLocation.TileX, cameraLocation.TileZ) != null;
-            var groundLevel = groundAvailable ? Viewer.Tiles.GetElevation(cameraLocation) : 0;
+            var terrainAvailable = Viewer.Tiles.GetTile(cameraLocation.TileX, cameraLocation.TileZ) != null;
+            var groundAvailable = SceneryShader.AdvancedEnvironment && Viewer.Settings.EnvironmentGroundFog > 0 && terrainAvailable;
+            var groundLevel = terrainAvailable ? Viewer.Tiles.GetElevation(cameraLocation) : 0;
+            if (SceneryShader.AdvancedEnvironment && Viewer.Settings.EnvironmentQuality >= 2 && Viewer.Settings.EnvironmentVolumetricClouds && Viewer.Settings.EnvironmentIntensity > 0
+                && Viewer.Simulator.Weather.CloudCoverFactor >= 0.02f && !(Viewer.Camera is CabCamera))
+            {
+                if (Viewer.RenderProcess.VolumetricClouds == null) Viewer.RenderProcess.VolumetricClouds = new VolumetricClouds(Viewer.GraphicsDevice);
+                SceneryShader.SetCloudLighting(Viewer.RenderProcess.VolumetricClouds.NoiseTexture,
+                    new Vector3((cameraLocation.TileX % 1024) * 2048f,0,-(cameraLocation.TileZ % 1024) * 2048f),
+                    new Vector4(groundLevel + 750,1000,Viewer.Simulator.Weather.CloudCoverFactor,(float)Viewer.Simulator.ClockTime));
+            }
+            else SceneryShader.SetCloudLighting(null,Vector3.Zero,Vector4.Zero);
             SceneryShader.SetEnvironment(new EnvironmentParameters(
                 Viewer.Settings.EnvironmentQuality, Viewer.Settings.EnvironmentIntensity,
                 sunDirection.Y, Viewer.Settings.UseMSTSEnv ? Viewer.World.MSTSSky.mstsskyovercastFactor : Viewer.Simulator.Weather.CloudCoverFactor,

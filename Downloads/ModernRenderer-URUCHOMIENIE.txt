@@ -1,0 +1,41 @@
+OPEN RAILS - MODERN RENDERER PREVIEW
+
+To prototyp przebudowy renderera. NIE jest gotowym nowym silnikiem gry
+ani potwierdzonym odwzorowaniem screenow TSRE 1:1.
+
+Wymagania: Windows 10/11 x64, karta DirectX 10+, .NET Desktop Runtime 6.0.36 x64.
+Runtime: https://dotnet.microsoft.com/en-us/download/dotnet/6.0
+
+1. Rozpakuj CALY ZIP do nowego folderu. Uruchom OpenRails.exe poza ZIP.
+2. W glownym oknie: Content > Manually Installed > Add > Browse.
+   Wskaz katalog zawartosci z Routes i Trains. Trasa, tabor oraz Global/Sound
+   musza byc zainstalowane zgodnie z instrukcjami PKOR. Nie ma ich w tym ZIP.
+3. Paczka ma wlasny OpenRails.ini z High, sila 100 i nowymi efektami wlaczonymi.
+   Ustawienia sa w Options > Environment. Zatwierdz OK i uruchom nowa jazde.
+4. Widok zewnetrzny: klawisz 2 albo 8. Przy bezchmurnej pogodzie chmur nie ma.
+   Ctrl i =/+ zwieksza zachmurzenie; Ctrl i - zmniejsza je.
+5. Alt+F5 otwiera HUD; Shift+Alt+F5 przelacza strony. Strona diagnostyczna
+   podaje aktywny renderer. Original/MSTS omija nowe efekty.
+6. Log tej paczki jest w Logs/OpenRailsLog.txt obok EXE, po uruchomieniu jazdy.
+
+NOWE
+HDR, tone mapping i grading, bloom, FXAA, objetosciowe chmury 3D
+z testem glebokosci, cienie chmur oraz odbicia otoczenia w wodzie.
+High jest kosztowniejszy. Balanced pomija chmury objetosciowe i odbicia sceny.
+Mozna tez osobno wylaczyc efekty w Environment.
+
+OGRANICZENIA
+Cel 1080p / 60 FPS nie jest wynikiem pomiaru ani gwarancja.
+To nadal modele i tekstury z zainstalowanej trasy. Nie dodano nowych drzew,
+teksturowania PBR, SSAO ani TAA. Odbicia uzywaja jednej plaszczyzny wody
+i geometrii przygotowanej dla glownej kamery; moga miec braki poza jej polem.
+Nie potwierdzono zgodnosci obrazu z referencjami ani wydajnosci na Windows/GPU.
+Testy shaderow oraz uruchomienie trasy wykonano przez Wine.
+W widoku testowej trasy pozostaja czarne powierzchnie i problemy wygladu wody.
+Jedno uruchomienie zakonczylo sie timeoutem watchdoga renderera; ponowne
+uruchomienie wyrenderowalo scene. Stabilnosc tej wersji nie jest potwierdzona.
+Szczegoly i pozostale ograniczenia: Docs/Modern-Renderer.md w repozytorium.
+
+ZRODLA I LICENCJA
+https://github.com/pawel2137oioi/Niewiem/tree/codex/graphics-test-download
+GPL; zobacz LICENSE i Copying.txt. Testowe dane PKOR nie sa redystrybuowane.

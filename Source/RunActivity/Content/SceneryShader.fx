@@ -58,7 +58,13 @@ texture  OverlayTexture;
 float	 OverlayScale;
 
 #include "Environment.fxh"
-
+float4 EnvironmentClipPlane;
+texture WaterReflectionMap;
+float4x4 WaterReflectionProjection;
+float4 WaterParameters;
+texture3D CloudNoiseTexture;
+float4 CloudShadowLayer;
+float3 CloudWorldOffset;
 sampler Image = sampler_state
 {
 	Texture = (ImageTexture);
@@ -110,6 +116,26 @@ sampler ShadowMap3 = sampler_state
 	MinFilter = Linear;
 	MipFilter = Linear;
 };
+
+sampler3D CloudNoise = sampler_state {
+    Texture = (CloudNoiseTexture); MinFilter = Linear; MagFilter = Linear;
+    MipFilter = None; AddressU = Wrap; AddressV = Wrap; AddressW = Wrap;
+};
+sampler WaterReflectionSampler = sampler_state {
+    Texture = (WaterReflectionMap); MinFilter = Linear; MagFilter = Linear;
+    MipFilter = None; AddressU = Clamp; AddressV = Clamp;
+};
+
+
+// Some route faces use a constant UV (including one-pixel solid textures).
+// Explicit LOD avoids undefined anisotropic derivatives on those faces.
+float4 SampleImage(uniform bool Advanced,float2 uv)
+{
+    if (!Advanced) return tex2D(Image,uv);
+    float2 dx = ddx(uv), dy = ddy(uv);
+    if (dot(dx,dx) + dot(dy,dy) < 0.000000000001) return tex2Dlod(Image,float4(uv,0,0));
+    return tex2Dgrad(Image,uv,dx,dy);
+}
 
 ////////////////////    V E R T E X   I N P U T S    ///////////////////////////
 
@@ -163,7 +189,8 @@ void _VSNormalProjection(in VERTEX_INPUT In, inout VERTEX_OUTPUT Out)
 	Out.RelPosition.xyz = mul(In.Position, World).xyz - ViewerPos;
 	Out.RelPosition.w = Out.Position.z;
 	Out.TexCoords.xy = In.TexCoords;
-	Out.Normal_Light.xyz = normalize(mul(In.Normal, (float3x3)World).xyz);
+    float3 worldNormal = mul(In.Normal, (float3x3)World).xyz;
+    Out.Normal_Light.xyz = worldNormal * rsqrt(max(dot(worldNormal,worldNormal),0.00000001));
 	
 	// Normal lighting (range 0.0 - 1.0)
 	// Need to calc. here instead of _VSLightsAndShadows() to avoid calling it from VSForest(), where it has gone into pre-shader in Shaders.cs
@@ -206,6 +233,17 @@ void _VSTransferProjection(in VERTEX_INPUT_TRANSFER In, inout VERTEX_OUTPUT Out)
 
 void _VSLightsAndShadows(uniform bool ShaderModel3, uniform bool Advanced, in float4 InPosition, inout VERTEX_OUTPUT Out)
 {
+    Out.Color.a = 1;
+    if (Advanced && CloudShadowLayer.z > 0.02 && LightVector_ZFar.y > 0.05) {
+        float3 p = mul(InPosition, World).xyz;
+        float height = CloudShadowLayer.x + CloudShadowLayer.y * 0.45;
+        p += LightVector_ZFar.xyz * max(0, (height - p.y) / LightVector_ZFar.y);
+        float3 coord = (p + CloudWorldOffset + float3(CloudShadowLayer.w * 7,0,CloudShadowLayer.w * 3)) / 32768;
+        float mass = tex3Dlod(CloudNoise,float4(coord,0)).r * 0.65
+            + tex3Dlod(CloudNoise,float4(coord * 2 + 0.17,0)).r * 0.25
+            + tex3Dlod(CloudNoise,float4(coord * 8 + 0.39,0)).r * 0.1;
+        Out.Color.a = 1 - saturate((mass - lerp(0.72,0.28,CloudShadowLayer.z)) * 7) * 0.55;
+    }
 	// Headlight lighting
 	Out.LightDir_Fog.xyz = mul(InPosition, World).xyz - HeadlightPosition.xyz;
 
@@ -311,7 +349,7 @@ VERTEX_OUTPUT VSForest(uniform bool Advanced, in VERTEX_INPUT_FOREST In)
 	Out.TexCoords.xy = In.TexCoords;
 	Out.Normal_Light = EyeVector;
 
-	_VSLightsAndShadows(false, Advanced, In.Position, Out);
+	_VSLightsAndShadows(Advanced, Advanced, In.Position, Out);
 
 	return Out;
 }
@@ -345,7 +383,9 @@ float _PSGetAmbientEffect(in VERTEX_OUTPUT In)
 float _PSGetSpecularEffect(in VERTEX_OUTPUT In)
 {
 	float3 halfVector = normalize(-In.RelPosition.xyz) + LightVector_ZFar.xyz;
-	return In.Normal_Light.w * ZBias_Lighting.w * pow(saturate(dot(In.Normal_Light.xyz, normalize(halfVector))), ZBias_Lighting.z);
+    // Transfers have no surface normal; disabled specular must not evaluate 0^0.
+    float cosine = max(saturate(dot(In.Normal_Light.xyz, normalize(halfVector))),0.0001);
+    return In.Normal_Light.w * ZBias_Lighting.w * pow(cosine, ZBias_Lighting.z);
 }
 
 // Gets the shadow effect.
@@ -451,6 +491,7 @@ void _PSApplyHeadlights(inout float3 Color, in float3 OriginalColor, in VERTEX_O
 // Applies distance fog to the pixel.
 void _PSApplyFog(uniform bool Advanced, inout float3 Color, in VERTEX_OUTPUT In)
 {
+    if (Advanced) clip(dot(float4(In.RelPosition.xyz + ViewerPos, 1), EnvironmentClipPlane));
     if (!Advanced) { Color = lerp(Color, Fog.rgb, In.LightDir_Fog.w); return; }
     float3 fogColor = EnvironmentHorizonColor(Fog.rgb);
     if (Environment.w > 0.5) {
@@ -471,7 +512,7 @@ float4 PSImage(uniform bool ShaderModel3, uniform bool ClampTexCoords, uniform b
 	const float FullBrightness = 1.0;
 	const float ShadowBrightness = 0.5;
 
-	float4 Color = tex2D(Image, In.TexCoords.xy);
+	float4 Color = SampleImage(Advanced, In.TexCoords.xy);
 	if (ShaderModel3 && ClampTexCoords) {
 		// We need to clamp the rendering to within the [0..1] range only.
 		if (saturate(In.TexCoords.x) != In.TexCoords.x || saturate(In.TexCoords.y) != In.TexCoords.y) {
@@ -485,7 +526,7 @@ float4 PSImage(uniform bool ShaderModel3, uniform bool ClampTexCoords, uniform b
     float shadow = _PSGetShadowEffect(ShaderModel3, true, In);
     float directLight = _PSGetAmbientEffect(In) * shadow;
 	float3 litColor = Color.rgb * lerp(ShadowBrightness, FullBrightness, saturate(directLight + ImageTextureIsNight));
-    if (Advanced) litColor = EnvironmentLitColor(Color.rgb, litColor, directLight, ImageTextureIsNight);
+    if (Advanced) litColor = EnvironmentLitColor(Color.rgb, litColor, directLight * In.Color.a, ImageTextureIsNight);
 	// Specular effect next.
 	litColor += _PSGetSpecularEffect(In) * shadow;
 	// Overcast blanks out ambient, shadow and specular effects (so use original Color).
@@ -518,13 +559,14 @@ float4 PSImage9_1(in VERTEX_OUTPUT In) : COLOR0
 
 float4 PSVegetation(uniform bool Advanced, in VERTEX_OUTPUT In) : COLOR0
 {
-	float4 Color = tex2D(Image, In.TexCoords.xy);
+	float4 Color = SampleImage(Advanced, In.TexCoords.xy);
     // Alpha testing:
     clip(Color.a - ReferenceAlpha);
 	// Ambient effect applies first; no shadow effect for vegetation; night-time textures cancel out all normal lighting.
 	float3 litColor = Color.rgb * VegetationAmbientModifier;
-    float canopyLight = saturate(In.Normal_Light.w) * lerp(0.7, 1.0, saturate(1 - In.TexCoords.y));
-    if (Advanced) litColor = EnvironmentLitColor(Color.rgb, litColor, canopyLight, ImageTextureIsNight);
+    float canopyLight = saturate(In.Normal_Light.w) * lerp(0.55, 1.0, saturate(1 - In.TexCoords.y));
+    if (Advanced) canopyLight *= _PSGetShadowEffect(true, false, In);
+    if (Advanced) litColor = EnvironmentLitColor(Color.rgb, litColor, canopyLight * In.Color.a, ImageTextureIsNight);
 	// No specular effect for vegetation.
 	// Overcast blanks out ambient, shadow and specular effects (so use original Color).
 	litColor = lerp(litColor, _PSGetOvercastColor(Color, In), Overcast.x);
@@ -546,11 +588,11 @@ float4 PSTerrain(uniform bool ShaderModel3, uniform bool Advanced, in VERTEX_OUT
 	const float FullBrightness = 1.0;
 	const float ShadowBrightness = 0.5;
 
-	float4 Color = tex2D(Image, In.TexCoords.xy);
+	float4 Color = SampleImage(Advanced, In.TexCoords.xy);
 	// Ambient and shadow effects apply first; night-time textures cancel out all normal lighting.
     float directLight = _PSGetAmbientEffect(In) * _PSGetShadowEffect(ShaderModel3, true, In);
 	float3 litColor = Color.rgb * lerp(ShadowBrightness, FullBrightness, saturate(directLight + ImageTextureIsNight));
-    if (Advanced) litColor = EnvironmentLitColor(Color.rgb, litColor, directLight, ImageTextureIsNight);
+    if (Advanced) litColor = EnvironmentLitColor(Color.rgb, litColor, directLight * In.Color.a, ImageTextureIsNight);
 	// No specular effect for terrain.
 	// Overcast blanks out ambient, shadow and specular effects (so use original Color).
 	litColor = lerp(litColor, _PSGetOvercastColor(Color, In), Overcast.x);
@@ -581,7 +623,7 @@ float4 PSDarkShade(uniform bool Advanced, in VERTEX_OUTPUT In) : COLOR0
 {
 	const float ShadowBrightness = 0.5;
 
-	float4 Color = tex2D(Image, In.TexCoords.xy);
+	float4 Color = SampleImage(Advanced, In.TexCoords.xy);
     // Alpha testing:
     clip(Color.a - ReferenceAlpha);
 	// Fixed ambient and shadow effects at darkest level.
@@ -607,7 +649,7 @@ float4 PSHalfBright(uniform bool Advanced, in VERTEX_OUTPUT In) : COLOR0
 {
 	const float HalfShadowBrightness = 0.75;
 
-	float4 Color = tex2D(Image, In.TexCoords.xy);
+	float4 Color = SampleImage(Advanced, In.TexCoords.xy);
     // Alpha testing:
     clip(Color.a - ReferenceAlpha);
 	// Fixed ambient and shadow effects at mid-dark level.
@@ -630,7 +672,7 @@ float4 PSHalfBright9_3(in VERTEX_OUTPUT In) : COLOR0 { return PSHalfBright(false
 
 float4 PSFullBright(uniform bool Advanced, in VERTEX_OUTPUT In) : COLOR0
 {
-	float4 Color = tex2D(Image, In.TexCoords.xy);
+	float4 Color = SampleImage(Advanced, In.TexCoords.xy);
     // Alpha testing:
     clip(Color.a - ReferenceAlpha);
 	// Fixed ambient and shadow effects at brightest level.
@@ -665,13 +707,53 @@ float4 PSSignalLight(in VERTEX_OUTPUT In) : COLOR0
 VERTEX_OUTPUT VSGeneralAdvanced(in VERTEX_INPUT In) { return VSGeneral(true, true, In); }
 VERTEX_OUTPUT VSTerrainAdvanced(in VERTEX_INPUT In) { return VSTerrain(true, true, In); }
 VERTEX_OUTPUT VSTransferAdvanced(in VERTEX_INPUT_TRANSFER In) { return VSTransfer(true, true, In); }
-float4 PSImageAdvanced(in VERTEX_OUTPUT In) : COLOR0 { return PSImage(true, false, true, In); }
-float4 PSImageAdvancedClamp(in VERTEX_OUTPUT In) : COLOR0 { return PSImage(true, true, true, In); }
-float4 PSTerrainAdvanced(in VERTEX_OUTPUT In) : COLOR0 { return PSTerrain(true, true, In); }
-float4 PSVegetationAdvanced(in VERTEX_OUTPUT In) : COLOR0 { return PSVegetation(true, In); }
-float4 PSDarkShadeAdvanced(in VERTEX_OUTPUT In) : COLOR0 { return PSDarkShade(true, In); }
-float4 PSHalfBrightAdvanced(in VERTEX_OUTPUT In) : COLOR0 { return PSHalfBright(true, In); }
-float4 PSFullBrightAdvanced(in VERTEX_OUTPUT In) : COLOR0 { return PSFullBright(true, In); }
+float4 PSWaterAdvanced(in VERTEX_OUTPUT In) : COLOR0
+{
+    if (Environment.x <= 0) return PSImage(true, false, false, In);
+    // Route alpha defines water coverage/shoreline masks and stacked layers.
+    // Keep those masks stationary; animate the reflected surface normal only.
+    float4 baseColor = SampleImage(true,In.TexCoords.xy);
+    clip(baseColor.a - ReferenceAlpha);
+    float3 position = In.RelPosition.xyz + ViewerPos;
+    float t = WaterParameters.y;
+    // Metre-based, tile-periodic waves keep their phase when the camera changes tiles.
+    float2 waves = float2(sin(position.x * 0.785398 + position.z * 0.196350 + t * 0.8),
+        cos(position.z * 0.785398 - position.x * 0.196350 + t * 0.6));
+    float3 normal = normalize(float3(waves.x * 0.035, 1, waves.y * 0.035));
+    float3 eye = normalize(-In.RelPosition.xyz);
+    float fresnel = 0.04 + 0.96 * pow(1 - saturate(dot(eye, normal)), 5);
+    float3 ray = reflect(-eye, normal);
+    float3 reflection = lerp(EnvironmentHorizonColor(Fog.rgb), float3(0.24, 0.43, 0.65), saturate(ray.y * 2));
+    reflection *= lerp(0.06, 1, Environment.y);
+    if (WaterParameters.x > 0.5) {
+        float4 projected = mul(float4(position, 1), WaterReflectionProjection);
+        float2 uv = projected.xy / max(projected.w, 0.001) * float2(0.5, -0.5) + 0.5;
+        uv += waves * 0.002;
+        if (projected.w > 0 && all(uv >= 0) && all(uv <= 1)) reflection = tex2D(WaterReflectionSampler, uv).rgb;
+    }
+    float3 body = lerp(baseColor.rgb, float3(0.035, 0.085, 0.07), 0.6) * lerp(0.12, 1, Environment.y);
+    float specular = pow(saturate(dot(reflect(-LightVector_ZFar.xyz, normal), eye)), 256);
+    float3 color = lerp(body, reflection, 0.25 + 0.75 * fresnel);
+    color += float3(1.0, 0.91, 0.72) * specular * EnvironmentDayStrength() * Environment.z * EnvironmentWeather.y;
+    _PSApplyFog(true, color, In);
+    return float4(color, baseColor.a);
+}
+
+struct SceneOutput { float4 Color : SV_TARGET0; float4 Depth : SV_TARGET1; };
+SceneOutput SceneResult(float4 color, VERTEX_OUTPUT In)
+{
+    SceneOutput o; o.Color = color;
+    o.Depth = float4(length(In.RelPosition.xyz), 0, 0, color.a);
+    return o;
+}
+SceneOutput PSWaterScene(in VERTEX_OUTPUT In) { return SceneResult(PSWaterAdvanced(In), In); }
+SceneOutput PSImageAdvanced(in VERTEX_OUTPUT In) { return SceneResult(PSImage(true, false, true, In), In); }
+SceneOutput PSImageAdvancedClamp(in VERTEX_OUTPUT In) { return SceneResult(PSImage(true, true, true, In), In); }
+SceneOutput PSTerrainAdvanced(in VERTEX_OUTPUT In) { return SceneResult(PSTerrain(true, true, In), In); }
+SceneOutput PSVegetationAdvanced(in VERTEX_OUTPUT In) { return SceneResult(PSVegetation(true, In), In); }
+SceneOutput PSDarkShadeAdvanced(in VERTEX_OUTPUT In) { return SceneResult(PSDarkShade(true, In), In); }
+SceneOutput PSHalfBrightAdvanced(in VERTEX_OUTPUT In) { return SceneResult(PSHalfBright(true, In), In); }
+SceneOutput PSFullBrightAdvanced(in VERTEX_OUTPUT In) { return SceneResult(PSFullBright(true, In), In); }
 
 ////////////////////    T E C H N I Q U E S    /////////////////////////////////
 
@@ -804,6 +886,13 @@ technique ImageAdvanced {
     pass Pass_0 {
         VertexShader = compile vs_4_0 VSGeneralAdvanced();
         PixelShader = compile ps_4_0 PSImageAdvanced();
+    }
+}
+
+technique WaterAdvanced {
+    pass Pass_0 {
+        VertexShader = compile vs_4_0 VSGeneralAdvanced();
+        PixelShader = compile ps_4_0 PSWaterScene();
     }
 }
 

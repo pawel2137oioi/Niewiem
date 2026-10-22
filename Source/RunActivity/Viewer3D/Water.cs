@@ -37,6 +37,7 @@ namespace Orts.Viewer3D
         readonly VertexBuffer VertexBuffer;
         readonly IndexBuffer IndexBuffer;
         readonly int PrimitiveCount;
+        internal readonly float SurfaceHeight;
         readonly VertexBufferBinding[] VertexBufferBindings;
 
         Matrix xnaMatrix = Matrix.Identity;
@@ -47,6 +48,7 @@ namespace Orts.Viewer3D
             TileX = tile.TileX;
             TileZ = tile.TileZ;
             Size = tile.Size;
+            SurfaceHeight = (tile.WaterNW + tile.WaterNE + tile.WaterSW + tile.WaterSE) * 0.25f;
 
             if (Viewer.ENVFile.WaterLayers != null)
             WaterLayers = Viewer.ENVFile.WaterLayers.Select(layer => new KeyValuePair<float, Material>(layer.Height, Viewer.MaterialManager.Load("Water", Viewer.Simulator.RoutePath + @"\envfiles\textures\" + layer.TextureName))).ToArray();
@@ -173,8 +175,8 @@ namespace Orts.Viewer3D
         public override void SetState(GraphicsDevice graphicsDevice, Material previousMaterial)
         {
             var shader = Viewer.MaterialManager.SceneryShader;
-            shader.CurrentTechnique = shader.ImageTechnique;
-            if (ShaderPasses == null) ShaderPasses = shader.ImageTechnique.Passes.GetEnumerator();
+            shader.CurrentTechnique = shader.WaterTechnique;
+            if (ShaderPasses == null) ShaderPasses = shader.WaterTechnique.Passes.GetEnumerator();
             shader.ImageTexture = WaterTexture;
             shader.ReferenceAlpha = 10;
 
@@ -191,6 +193,9 @@ namespace Orts.Viewer3D
                 foreach (var item in renderItems)
                 {
                     shader.SetMatrix(item.XNAMatrix, ref XNAViewMatrix, ref XNAProjectionMatrix);
+                    shader.SetWater(Viewer.RenderProcess.WaterReflection,
+                        item.RenderPrimitive is WaterPrimitive water ? water.SurfaceHeight + item.XNAMatrix.M42 : float.NaN,
+                        (float)(Viewer.Simulator.ClockTime % 4096));
                     shader.ZBias = item.RenderPrimitive.ZBias;
                     ShaderPasses.Current.Apply();
                     // SamplerStates can only be set after the ShaderPasses.Current.Apply().

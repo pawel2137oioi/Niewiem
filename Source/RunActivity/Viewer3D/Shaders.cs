@@ -51,6 +51,7 @@ namespace Orts.Viewer3D
         internal EffectTechnique DarkShadeTechnique { get; private set; }
         internal EffectTechnique HalfBrightTechnique { get; private set; }
         internal EffectTechnique FullBrightTechnique { get; private set; }
+        internal EffectTechnique WaterTechnique { get; private set; }
         internal bool AdvancedEnvironment { get; private set; }
 
         internal void ConfigureTechniques(string suffix)
@@ -64,6 +65,7 @@ namespace Orts.Viewer3D
             DarkShadeTechnique = Techniques["DarkShade" + suffix];
             HalfBrightTechnique = Techniques["HalfBright" + suffix];
             FullBrightTechnique = Techniques["FullBright" + suffix];
+            WaterTechnique = AdvancedEnvironment ? Techniques["WaterAdvanced"] : ImageTechnique;
         }
         readonly EffectParameter world;
         readonly EffectParameter view;
@@ -94,6 +96,25 @@ namespace Orts.Viewer3D
         readonly EffectParameter environment;
         readonly EffectParameter environmentWeather;
         readonly EffectParameter environmentGroundLevel;
+        readonly EffectParameter clipPlane;
+        readonly EffectParameter waterReflectionMap;
+        readonly EffectParameter waterReflectionProjection;
+        readonly EffectParameter waterParameters;
+        readonly EffectParameter cloudNoiseTexture, cloudShadowLayer, cloudWorldOffset;
+        internal void SetCloudLighting(Texture3D noise, Vector3 offset, Vector4 layer)
+        {
+            cloudNoiseTexture.SetValue(noise); cloudWorldOffset.SetValue(offset); cloudShadowLayer.SetValue(layer);
+        }
+
+        internal void SetClipPlane(Vector4 plane) => clipPlane.SetValue(plane);
+        internal void ClearWaterReflection() => waterReflectionMap.SetValue((Texture2D)null);
+        internal void SetWater(WaterReflection reflection, float height, float time)
+        {
+            var valid = reflection != null && reflection.Valid && Math.Abs(reflection.Height - height) < 0.5f;
+            waterReflectionMap.SetValue(valid ? reflection.Target : (Texture2D)null);
+            waterReflectionProjection.SetValue(valid ? reflection.ViewProjection : Matrix.Identity);
+            waterParameters.SetValue(new Vector4(valid ? 1 : 0, time, 0, 0));
+        }
 
         Vector3 _eyeVector;
         Vector4 _zBias_Lighting;
@@ -257,6 +278,13 @@ namespace Orts.Viewer3D
             environment = Parameters["Environment"];
             environmentWeather = Parameters["EnvironmentWeather"];
             environmentGroundLevel = Parameters["EnvironmentGroundLevel"];
+            clipPlane = Parameters["EnvironmentClipPlane"];
+            waterReflectionMap = Parameters["WaterReflectionMap"];
+            waterReflectionProjection = Parameters["WaterReflectionProjection"];
+            waterParameters = Parameters["WaterParameters"];
+            cloudNoiseTexture = Parameters["CloudNoiseTexture"];
+            cloudShadowLayer = Parameters["CloudShadowLayer"];
+            cloudWorldOffset = Parameters["CloudWorldOffset"];
         }
     }
 

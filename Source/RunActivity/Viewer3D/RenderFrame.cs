@@ -156,6 +156,9 @@ namespace Orts.Viewer3D
         Vector3[] ShadowMapCenter;
 
         internal RenderTarget2D RenderSurface;
+        internal RenderTarget2D SceneDepth;
+        RenderTargetBinding[] sceneTargets;
+        bool drawVolumetricClouds;
         SpriteBatchMaterial RenderSurfaceMaterial;
 
         readonly Material DummyBlendedMaterial;
@@ -168,6 +171,7 @@ namespace Orts.Viewer3D
         public bool IsScreenChanged { get; internal set; }
         ShadowMapMaterial ShadowMapMaterial;
         SceneryShader SceneryShader;
+        internal bool IsSceneFrame => SceneryShader != null;
         Vector3 SolarDirection;
         Camera Camera;
         Vector3 CameraLocation;
@@ -221,16 +225,26 @@ namespace Orts.Viewer3D
 
         void ScreenChanged()
         {
+            RenderSurface?.Dispose();
+            SceneDepth?.Dispose();
+            var modern = !Game.Settings.UseMSTSEnv && Game.Settings.EnvironmentQuality > 0 && Game.Settings.EnvironmentIntensity > 0
+                && Game.Settings.IsDirectXFeatureLevelIncluded(ORTS.Settings.UserSettings.DirectXFeature.Level10_0);
             RenderSurface = new RenderTarget2D(
                 Game.RenderProcess.GraphicsDevice,
                 Game.RenderProcess.GraphicsDevice.PresentationParameters.BackBufferWidth,
                 Game.RenderProcess.GraphicsDevice.PresentationParameters.BackBufferHeight,
                 false,
-                Game.RenderProcess.GraphicsDevice.PresentationParameters.BackBufferFormat,
+                modern ? SurfaceFormat.HalfVector4 : Game.RenderProcess.GraphicsDevice.PresentationParameters.BackBufferFormat,
                 Game.RenderProcess.GraphicsDevice.PresentationParameters.DepthStencilFormat,
-                Game.RenderProcess.GraphicsDevice.PresentationParameters.MultiSampleCount,
+                modern ? 0 : Game.RenderProcess.GraphicsDevice.PresentationParameters.MultiSampleCount,
                 RenderTargetUsage.PreserveContents
             );
+            if (modern)
+            {
+                SceneDepth = new RenderTarget2D(Game.RenderProcess.GraphicsDevice, RenderSurface.Width, RenderSurface.Height,
+                    false, SurfaceFormat.Single, DepthFormat.None, RenderSurface.MultiSampleCount, RenderTargetUsage.PreserveContents);
+                sceneTargets = new[] { new RenderTargetBinding(RenderSurface), new RenderTargetBinding(SceneDepth) };
+            }
         }
 
         public void Clear()
@@ -497,6 +511,7 @@ namespace Orts.Viewer3D
             if (Game.Settings.DynamicShadows && (RenderProcess.ShadowMapCount > 0) && ShadowMapMaterial != null)
                 DrawShadows(graphicsDevice, logging);
 
+            DrawWaterReflection(graphicsDevice);
             DrawSimple(graphicsDevice, logging);
 
             for (var i = 0; i < (int)RenderPrimitiveSequence.Sentinel; i++)
@@ -507,6 +522,97 @@ namespace Orts.Viewer3D
                 Console.WriteLine("}");
                 Console.WriteLine();
             }
+        }
+
+        void DrawWaterReflection(GraphicsDevice device)
+        {
+            var process = Game.RenderProcess;
+            if (SceneryShader == null || !SceneryShader.AdvancedEnvironment || Game.Settings.EnvironmentQuality < 2
+                || !Game.Settings.EnvironmentWaterReflections || Camera == null)
+            {
+                if (process.WaterReflection != null) process.WaterReflection.Valid = false;
+                return;
+            }
+            var height = 0f;
+            var nearest = float.MaxValue;
+            foreach (var collection in RenderItems[(int)RenderPrimitiveSequence.WorldBlended].Values)
+                foreach (var item in collection)
+                    if (item.Material is WaterMaterial && item.RenderPrimitive is WaterPrimitive water)
+                    {
+                        var y = water.SurfaceHeight + item.XNAMatrix.M42;
+                        if (y >= XNACameraLocation.Y - 0.1f) continue;
+                        var delta = new Vector2(item.XNAMatrix.M41 - XNACameraLocation.X, item.XNAMatrix.M43 - XNACameraLocation.Z);
+                        if (delta.LengthSquared() < nearest) { nearest = delta.LengthSquared(); height = y; }
+                    }
+            if (nearest == float.MaxValue)
+            {
+                if (process.WaterReflection != null) process.WaterReflection.Valid = false;
+                return;
+            }
+            if (process.WaterReflection == null) process.WaterReflection = new WaterReflection();
+            var reflection = process.WaterReflection;
+            if (!reflection.Begin(device, height, Camera.TileX, Camera.TileZ, XNACameraLocation)) return;
+
+            var viewport = device.Viewport;
+            var mirror = Matrix.CreateReflection(new Plane(Vector3.Up, -height));
+            var view = mirror * XNACameraView;
+            reflection.ViewProjection = view * XNACameraProjection;
+            reflection.Valid = false;
+            // Unbind the last frame's reflection before using it as a render target.
+            SceneryShader.ClearWaterReflection();
+            for (var i = 0; i < 16; i++)
+                if (device.Textures[i] == reflection.Target) device.Textures[i] = null;
+            try
+            {
+                process.DrawingWaterReflection = true;
+                device.SetRenderTargets(reflection.Bindings);
+                device.Clear(ClearOptions.Target | ClearOptions.DepthBuffer, Color.Transparent, 1, 0);
+                SceneryShader.ViewerPos = Vector3.Transform(XNACameraLocation, mirror);
+                SceneryShader.SetClipPlane(new Vector4(0, 1, 0, -height - 0.05f));
+                if (Game.Settings.DynamicShadows && RenderProcess.ShadowMapCount > 0)
+                    SceneryShader.SetShadowMap(ShadowMapLightViewProjShadowProj, ShadowMap, RenderProcess.ShadowMapLimit);
+
+                if (Game.Settings.DistantMountains)
+                {
+                    DrawReflectionItems(device, ref view, ref Camera.XnaDistantMountainProjection, true);
+                    device.Clear(ClearOptions.DepthBuffer, Color.Transparent, 1, 0);
+                }
+                DrawReflectionItems(device, ref view, ref XNACameraProjection, false);
+                device.SetRenderTarget(reflection.Target);
+                DrawCloudVolume(device, reflection.Target, reflection.Depth, view, XNACameraProjection);
+                reflection.Valid = true;
+            }
+            finally
+            {
+                process.DrawingWaterReflection = false;
+                SceneryShader.SetClipPlane(Vector4.Zero);
+                SceneryShader.ViewerPos = XNACameraLocation;
+                if (Game.Settings.DynamicShadows && RenderProcess.ShadowMapCount > 0) SceneryShader.ClearShadowMap();
+                device.SetRenderTarget(null);
+                device.Viewport = viewport;
+                device.RasterizerState = RasterizerState.CullCounterClockwise;
+                device.DepthStencilState = DepthStencilState.Default;
+                device.BlendState = BlendState.Opaque;
+            }
+        }
+
+        void DrawReflectionItems(GraphicsDevice device, ref Matrix view, ref Matrix projection, bool distant)
+        {
+            // Reuse the prepared opaque scene and its shadow maps. Never draw the
+            // cab, water, particles or UI into a reflection, or recurse into it.
+            for (var i = (int)RenderPrimitiveSequence.Sky; i <= (int)RenderPrimitiveSequence.WorldOpaque; i++)
+                foreach (var entry in RenderItems[i])
+                {
+                    Game.RenderProcess.ReportProgress();
+                    if (entry.Value.Count == 0 || entry.Key == DummyBlendedMaterial) continue;
+                    var background = entry.Key is SkyMaterial || entry.Key is TerrainSharedDistantMountain;
+                    if (distant ? !background : Game.Settings.DistantMountains && background) continue;
+                    entry.Key.SetState(device, null);
+                    // Reflection reverses winding; cull-none also supports two-sided route assets.
+                    device.RasterizerState = RasterizerState.CullNone;
+                    entry.Key.Render(device, entry.Value, ref view, ref projection);
+                    entry.Key.ResetState(device);
+                }
         }
 
         void DrawShadows( GraphicsDevice graphicsDevice, bool logging )
@@ -584,9 +690,15 @@ namespace Orts.Viewer3D
         /// <param name="logging"></param>
         void DrawSimple(GraphicsDevice graphicsDevice, bool logging)
         {
+            drawVolumetricClouds = RenderSurfaceMaterial != null && SceneryShader != null && SceneDepth != null && Game.Settings.EnvironmentQuality >= 2
+                && Game.Settings.EnvironmentVolumetricClouds && Game.Settings.EnvironmentIntensity > 0 && !(Camera is CabCamera);
+            var gradeScene = RenderSurfaceMaterial != null && SceneryShader != null && SceneryShader.AdvancedEnvironment
+                && Game.Settings.EnvironmentIntensity > 0;
+            var sceneEnd = gradeScene ? (int)RenderPrimitiveSequence.Labels : (int)RenderPrimitiveSequence.Sentinel;
             if (RenderSurfaceMaterial != null)
             {
-                graphicsDevice.SetRenderTarget(RenderSurface);
+                if (drawVolumetricClouds) graphicsDevice.SetRenderTargets(sceneTargets);
+                else graphicsDevice.SetRenderTarget(RenderSurface);
             }
 
             if (Game.Settings.DistantMountains)
@@ -597,14 +709,14 @@ namespace Orts.Viewer3D
                 if (logging) Console.WriteLine("  }");
                 if (logging) Console.WriteLine("  DrawSimple {");
                 graphicsDevice.Clear(ClearOptions.DepthBuffer, Color.Transparent, 1, 0);
-                DrawSequences(graphicsDevice, logging);
+                DrawSequences(graphicsDevice, logging, 0, sceneEnd);
                 if (logging) Console.WriteLine("  }");
             }
             else
             {
                 if (logging) Console.WriteLine("  DrawSimple {");
                 graphicsDevice.Clear(ClearOptions.Target | ClearOptions.DepthBuffer | ClearOptions.Stencil, Color.Transparent, 1, 0);
-                DrawSequences(graphicsDevice, logging);
+                DrawSequences(graphicsDevice, logging, 0, sceneEnd);
                 if (logging) Console.WriteLine("  }");
             }
 
@@ -612,25 +724,47 @@ namespace Orts.Viewer3D
             {
                 graphicsDevice.SetRenderTarget(null);
                 graphicsDevice.Clear(ClearOptions.Target | ClearOptions.DepthBuffer | ClearOptions.Stencil, Color.Transparent, 1, 0);
-                RenderSurfaceMaterial.SetState(graphicsDevice, null);
-                RenderSurfaceMaterial.SpriteBatch.Draw(RenderSurface, Vector2.Zero, Color.White);
-                RenderSurfaceMaterial.ResetState(graphicsDevice);
+                if (gradeScene)
+                {
+                    var process = Game.RenderProcess;
+                    if (process.EnvironmentPostProcess == null)
+                        process.EnvironmentPostProcess = new EnvironmentPostProcess(graphicsDevice);
+                    var daylight = new EnvironmentParameters(Game.Settings.EnvironmentQuality,
+                        Game.Settings.EnvironmentIntensity, SolarDirection.Y, 0, false).Daylight;
+                    process.EnvironmentPostProcess.Apply(RenderSurface, MathHelper.Clamp(Game.Settings.EnvironmentIntensity / 100f, 0, 1),
+                        daylight, Game.Settings.EnvironmentQuality, Game.Settings.EnvironmentBloom && !(Camera is CabCamera),
+                        Game.Settings.AntiAliasing > 1, Game.Settings.EnvironmentColorGrading && !(Camera is CabCamera));
+                    // HUD, labels, 2D cab overlays and menus retain their original colors.
+                    DrawSequences(graphicsDevice, logging, sceneEnd, (int)RenderPrimitiveSequence.Sentinel);
+                }
+                else
+                {
+                    RenderSurfaceMaterial.SetState(graphicsDevice, null);
+                    RenderSurfaceMaterial.SpriteBatch.Draw(RenderSurface, Vector2.Zero, Color.White);
+                    RenderSurfaceMaterial.ResetState(graphicsDevice);
+                }
             }
         }
 
-        void DrawSequences(GraphicsDevice graphicsDevice, bool logging)
+        void DrawSequences(GraphicsDevice graphicsDevice, bool logging, int first, int end)
         {
             if (Game.Settings.DynamicShadows && (RenderProcess.ShadowMapCount > 0) && SceneryShader != null)
                 SceneryShader.SetShadowMap(ShadowMapLightViewProjShadowProj, ShadowMap, RenderProcess.ShadowMapLimit);
 
             var renderItems = RenderItemsSequence;
             renderItems.Clear();
-            for (var i = 0; i < (int)RenderPrimitiveSequence.Sentinel; i++)
+            for (var i = first; i < end; i++)
             {
+                if (i == (int)RenderPrimitiveSequence.WorldBlended && drawVolumetricClouds)
+                {
+                    graphicsDevice.SetRenderTarget(RenderSurface);
+                    DrawCloudVolume(graphicsDevice, RenderSurface, SceneDepth, XNACameraView, XNACameraProjection);
+                }
                 if (logging) Console.WriteLine("    {0} {{", (RenderPrimitiveSequence)i);
                 var sequence = RenderItems[i];
                 foreach (var sequenceMaterial in sequence)
                 {
+                    Game.RenderProcess.ReportProgress();
                     if (sequenceMaterial.Value.Count == 0)
                         continue;
                     if (sequenceMaterial.Key == DummyBlendedMaterial)
@@ -691,6 +825,21 @@ namespace Orts.Viewer3D
 
             if (Game.Settings.DynamicShadows && (RenderProcess.ShadowMapCount > 0) && SceneryShader != null)
                 SceneryShader.ClearShadowMap();
+        }
+
+        void DrawCloudVolume(GraphicsDevice device, RenderTarget2D target, Texture2D depth, Matrix view, Matrix projection)
+        {
+            var viewer = Game.RenderProcess.Viewer;
+            if (viewer == null || !Game.Settings.EnvironmentVolumetricClouds || viewer.Simulator.Weather.CloudCoverFactor < 0.02f) return;
+            var location = viewer.Camera.CameraWorldLocation;
+            var ground = viewer.Tiles.GetTile(location.TileX, location.TileZ) != null ? viewer.Tiles.GetElevation(location) : 0;
+            var weather = viewer.Simulator.Weather;
+            var environment = new EnvironmentParameters(Game.Settings.EnvironmentQuality,Game.Settings.EnvironmentIntensity,
+                SolarDirection.Y,weather.CloudCoverFactor,false,weather.PrecipitationIntensityPPSPM2 / PrecipitationViewer.MaxIntensityPPSPM2,weather.VisibilityM);
+            if (Game.RenderProcess.VolumetricClouds == null) Game.RenderProcess.VolumetricClouds = new VolumetricClouds(device);
+            Game.RenderProcess.VolumetricClouds.Draw(target, depth, view, projection,
+                new Vector3((location.TileX % 1024) * 2048f,0,-(location.TileZ % 1024) * 2048f),SolarDirection,
+                SharedMaterialManager.FogColor.ToVector3(),environment,weather.CloudCoverFactor,ground,(float)viewer.Simulator.ClockTime);
         }
 
         void DrawSequencesDistantMountains(GraphicsDevice graphicsDevice, bool logging)

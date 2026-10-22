@@ -193,6 +193,14 @@ namespace ORTS.Settings
         public int EnvironmentGroundFog { get; set; }
         [Default(40)]
         public int EnvironmentFogHeight { get; set; }
+        [Default(true)]
+        public bool EnvironmentColorGrading { get; set; }
+        [Default(true)]
+        public bool EnvironmentBloom { get; set; }
+        [Default(true)]
+        public bool EnvironmentWaterReflections { get; set; }
+        [Default(true)]
+        public bool EnvironmentVolumetricClouds { get; set; }
 
         // Simulation settings:
         [Default(false)]

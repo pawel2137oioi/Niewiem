@@ -183,6 +183,9 @@ namespace Orts.Viewer3D.Processes
         {
             try
             {
+                // A missing category already returned an empty sample. There is
+                // no value to format, and some runtimes lack the native PDH API.
+                if (nextCounterSample.Equals(CounterSample.Empty)) return 0;
                 return CounterSample.Calculate(counterSample, nextCounterSample);
             }
             catch
@@ -199,6 +202,7 @@ namespace Orts.Viewer3D.Processes
         {
             try
             {
+                if (nextCounterSamples.Length == 0 || nextCounterSamples.All(sample => sample.Equals(CounterSample.Empty))) return 0;
                 var counterSample = new CounterSample(counterSamples.Sum(cs => cs.RawValue), counterSamples[0].BaseValue, counterSamples[0].CounterFrequency, counterSamples[0].SystemFrequency, counterSamples[0].TimeStamp, counterSamples[0].TimeStamp100nSec, counterSamples[0].CounterType, counterSamples[0].CounterTimeStamp);
                 var nextCounterSample = new CounterSample(nextCounterSamples.Sum(cs => cs.RawValue), nextCounterSamples[0].BaseValue, nextCounterSamples[0].CounterFrequency, nextCounterSamples[0].SystemFrequency, nextCounterSamples[0].TimeStamp, nextCounterSamples[0].TimeStamp100nSec, nextCounterSamples[0].CounterType, nextCounterSamples[0].CounterTimeStamp);
                 return CounterSample.Calculate(counterSample, nextCounterSample);

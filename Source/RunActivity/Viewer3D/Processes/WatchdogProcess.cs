@@ -185,7 +185,10 @@ namespace Orts.Viewer3D.Processes
         {
             get
             {
-                return !IsResponding && StacksAreWaits();
+                // Cross-thread stack capture is unavailable on .NET 5+. Managed
+                // wait state still distinguishes idle worker threads from hangs.
+                return !IsResponding && (StacksAreWaits() || (Stacks.Count == 0
+                    && (Thread.ThreadState & System.Threading.ThreadState.WaitSleepJoin) != 0));
             }
         }
 
@@ -335,6 +338,11 @@ namespace Orts.Viewer3D.Processes
         internal ThreadWatchdogException(string message, List<StackTrace> stacks)
             : base(message)
         {
+            if (stacks.Count == 0)
+            {
+                _stackTrace = "  (Cross-thread stack capture is unavailable on this runtime.)";
+                return;
+            }
             // Figure out the common base of the stacks.
             var maximumDepth = stacks.Max(stack => stack.FrameCount);
             var commonStack = new List<string>(maximumDepth);

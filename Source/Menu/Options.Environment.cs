@@ -11,6 +11,7 @@ namespace Menu
         CheckBox environmentSunGlare;
         NumericUpDown environmentGroundFog;
         NumericUpDown environmentFogHeight;
+        CheckBox environmentColorGrading, environmentBloom, environmentWaterReflections, environmentVolumetricClouds;
         bool applyBalancedShadowSettings;
 
         void InitializeEnvironmentOptions()
@@ -63,12 +64,20 @@ namespace Menu
             layout.Controls.Add(environmentGroundFog, 1, 3);
             layout.Controls.Add(new Label { AutoSize = true, Text = catalog.GetString("Fog layer height (m)") }, 0, 4);
             layout.Controls.Add(environmentFogHeight, 1, 4);
+            environmentColorGrading = new CheckBox { AutoSize = true, Text = catalog.GetString("Filmic scene colors"), Checked = Settings.EnvironmentColorGrading };
+            environmentBloom = new CheckBox { AutoSize = true, Text = catalog.GetString("Soft highlight bloom"), Checked = Settings.EnvironmentBloom };
+            environmentWaterReflections = new CheckBox { AutoSize = true, Text = catalog.GetString("Scene reflections in water (High)"), Checked = Settings.EnvironmentWaterReflections };
+            layout.Controls.Add(environmentColorGrading, 1, 5);
+            layout.Controls.Add(environmentBloom, 1, 6);
+            layout.Controls.Add(environmentWaterReflections, 1, 7);
+            environmentVolumetricClouds = new CheckBox { AutoSize = true, Text = catalog.GetString("Volumetric clouds (High)"), Checked = Settings.EnvironmentVolumetricClouds };
+            layout.Controls.Add(environmentVolumetricClouds, 1, 8);
             var description = new Label
             {
                 AutoSize = true, MaximumSize = new Size(540, 0), Margin = new Padding(0, 16, 0, 0),
-                Text = catalog.GetString("Balanced adds distance haze, a local ground fog layer and stronger sunlight contrast. High adds directional light scattering. Sunlight fades in rain and poor visibility; twilight adds a warm horizon. Enhanced effects require DirectX feature level 10.0 or newer; older cards use the original renderer. Original restores the previous lighting. Route-defined MSTS environments retain their original appearance. These settings do not change route or train files."),
+                Text = catalog.GetString("The new renderer uses HDR scene targets, filmic colors, bloom, FXAA, shaded vegetation and reflective water. High adds depth-aware volumetric clouds with self-shadowing, moving cloud shadows and half-resolution scene reflections in water. Clouds follow the current weather. HUD colors are preserved; filmic processing is disabled in the 2D cab view. Requires DirectX feature level 10.0 or newer. MSTS environments use the original renderer. Route geometry and textures still affect the result."),
             };
-            layout.Controls.Add(description, 0, 5);
+            layout.Controls.Add(description, 0, 9);
             layout.SetColumnSpan(description, 2);
             var preset = new Button
             {
@@ -80,6 +89,9 @@ namespace Menu
                 environmentQuality.SelectedIndex = 1;
                 environmentIntensity.Value = 70;
                 environmentSunGlare.Checked = true;
+                environmentColorGrading.Checked = environmentBloom.Checked = environmentWaterReflections.Checked = true;
+                environmentVolumetricClouds.Checked = true;
+                checkUseMSTSEnv.Checked = false;
                 environmentGroundFog.Value = 35;
                 environmentFogHeight.Value = 40;
                 comboWindowSize.Text = "1920x1080";
@@ -93,8 +105,19 @@ namespace Menu
                 numericPerformanceTunerTarget.Enabled = labelPerformanceTunerTarget.Enabled = true;
                 applyBalancedShadowSettings = true;
             };
-            layout.Controls.Add(preset, 0, 6);
+            layout.Controls.Add(preset, 0, 10);
             layout.SetColumnSpan(preset, 2);
+            var highPreset = new Button { AutoSize = true, Text = catalog.GetString("Apply High visual preset"), Margin = new Padding(0, 8, 0, 0) };
+            highPreset.Click += (sender, args) =>
+            {
+                preset.PerformClick();
+                environmentQuality.SelectedIndex = 2;
+                environmentIntensity.Value = 100;
+                checkPerformanceTuner.Checked = false;
+                checkShadowAllShapes.Checked = true;
+            };
+            layout.Controls.Add(highPreset, 0, 11);
+            layout.SetColumnSpan(highPreset, 2);
             environmentQuality.SelectedIndexChanged += (sender, args) =>
             {
                 environmentIntensity.Enabled = environmentSunGlare.Enabled = environmentQuality.SelectedIndex > 0;
@@ -113,13 +136,18 @@ namespace Menu
             Settings.EnvironmentSunGlare = environmentSunGlare.Checked;
             Settings.EnvironmentGroundFog = (int)environmentGroundFog.Value;
             Settings.EnvironmentFogHeight = (int)environmentFogHeight.Value;
+            Settings.EnvironmentColorGrading = environmentColorGrading.Checked;
+            Settings.EnvironmentBloom = environmentBloom.Checked;
+            Settings.EnvironmentWaterReflections = environmentWaterReflections.Checked;
+            Settings.EnvironmentVolumetricClouds = environmentVolumetricClouds.Checked;
             if (applyBalancedShadowSettings)
             {
                 // Defer mutation until OK; Cancel must preserve the user's settings.
                 Settings.ShadowMapCount = 2;
-                Settings.ShadowMapResolution = 1024;
+                Settings.ShadowMapResolution = environmentQuality.SelectedIndex >= 2 ? 2048 : 1024;
                 Settings.ShadowMapDistance = 0;
                 Settings.ShadowMapBlur = true;
+                Settings.DirectXFeatureLevel = ""; // Re-detect the available profile when the activity starts.
             }
         }
     }

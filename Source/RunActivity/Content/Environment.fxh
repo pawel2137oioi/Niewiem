@@ -62,8 +62,12 @@ float3 EnvironmentLitColor(float3 textureColor, float3 legacyColor, float direct
 {
     if (EnvironmentDayStrength() <= 0 || nightTexture >= 1) return legacyColor;
     float sunlight = saturate(directLight);
-    float3 tint = lerp(float3(0.82, 0.88, 1.0), float3(1.04, 1.0, 0.92), sunlight);
-    float3 lit = textureColor * (0.24 + 0.82 * sunlight) * tint;
+    // Work in linear light: skylight remains in shadow, warm directional light
+    // carries the lit surfaces. Convert back before blending legacy materials.
+    float3 albedo = pow(max(textureColor, 0), 2.2);
+    float3 skyLight = float3(0.09, 0.13, 0.20);
+    float3 sunLight = float3(1.65, 1.48, 1.18) * sunlight;
+    float3 lit = pow(max(albedo * (skyLight + sunLight), 0), 1 / 2.2);
     float amount = EnvironmentDayStrength() * Environment.z * EnvironmentWeather.y * (1 - nightTexture);
     return lerp(legacyColor, lit, amount);
 }

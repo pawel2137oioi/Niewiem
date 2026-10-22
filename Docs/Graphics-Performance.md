@@ -1,5 +1,10 @@
 # Graphics and performance work
 
+This document records the original atmosphere-only v1/v2 work. The subsequent
+HDR/volumetric-cloud renderer prototype, its tests and remaining limits are
+documented in [Modern-Renderer.md](Modern-Renderer.md). Statements below about
+unimplemented clouds/reflections refer to that older baseline.
+
 Target: 1920x1080 at 60 FPS with adjustable quality. Actual hardware and a
 representative route are not specified. This is a target, not a measured result.
 

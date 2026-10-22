@@ -190,6 +190,15 @@ float4 PSSky(uniform bool Advanced, VERTEX_OUTPUT In) : COLOR
 		skyColor = lerp(starColor, skyColor, pow(abs(SkyColor.y),0.125));
 		}
 	
+    if (Advanced) {
+        float3 ray = normalize(In.Normal);
+        float height = saturate(ray.y);
+        float3 zenith = lerp(float3(0.035, 0.12, 0.28), float3(0.12, 0.31, 0.57), sqrt(height));
+        float3 horizonColor = lerp(float3(0.66, 0.73, 0.77), zenith, pow(height, 0.35));
+        float3 daySky = lerp(float3(0.54, 0.57, 0.60), horizonColor, Environment.z);
+        skyColor.rgb = lerp(skyColor.rgb, daySky, EnvironmentDayStrength());
+    }
+
 	// Fogging
 	skyColor.rgb = lerp(skyColor.rgb, Advanced ? EnvironmentHorizonColor(FogColor.rgb) : FogColor.rgb, saturate((1 - In.Normal.y) * Fog.x));
 	
@@ -299,6 +308,18 @@ float4 PSClouds(uniform bool Advanced, VERTEX_OUTPUT In) : COLOR
 	// Adjust cloud color brightness for time of day
 	cloudColor *= CloudColor;
     if (Advanced) {
+        // Directional thickness shading uses neighboring density samples from
+        // the existing route-compatible cloud map, without marching a volume.
+        float2 sunOffset = LightVector.xz * 0.012;
+        float densityToSun = tex2D(CloudMapSampler, TexCoord + sunOffset).a;
+        float densityBehind = tex2D(CloudMapSampler, TexCoord - sunOffset * 2).a;
+        float body = saturate(alpha * 1.4 + densityToSun * 0.35);
+        float direct = saturate(0.85 - (densityToSun - cloudColor.a) * 3.5);
+        float3 litCloud = lerp(float3(0.27, 0.34, 0.43), float3(1.0, 0.98, 0.91), direct);
+        litCloud *= lerp(1.0, 0.69, body);
+        float rim = saturate(densityBehind - densityToSun) * 0.7;
+        cloudColor.rgb = lerp(cloudColor.rgb, (litCloud + rim) * CloudColor,
+            EnvironmentDayStrength() * (0.35 + 0.65 * Environment.z));
         // High quality adds a bounded sun-facing highlight at thin cloud edges.
         float sunDot = saturate(dot(normalize(In.Normal), LightVector.xyz * LightVector.w));
         cloudColor.rgb += float3(1.0, 0.96, 0.86) * pow(sunDot, 8) * (1 - saturate(alpha))
