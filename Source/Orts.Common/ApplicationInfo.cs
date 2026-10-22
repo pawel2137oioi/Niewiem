@@ -17,6 +17,7 @@
 
 using System.Diagnostics;
 using System.IO;
+using System.Reflection;
 
 namespace ORTS.Common
 {
@@ -25,7 +26,20 @@ namespace ORTS.Common
         public static string ProcessFile => Process.GetCurrentProcess().MainModule.FileName;
         public static string ProcessDirectory => Path.GetDirectoryName(ProcessFile);
         static FileVersionInfo VersionInfo => FileVersionInfo.GetVersionInfo(ProcessFile);
-        public static string ProductName => VersionInfo.ProductName;
-        public static string ApplicationName => VersionInfo.FileDescription;
+        // Apphosts built on a non-Windows system can lack native version resources.
+        // Keep settings paths valid using the metadata in the managed entry assembly.
+        public static string ProductName => NonEmpty(VersionInfo.ProductName,
+            Assembly.GetEntryAssembly()?.GetCustomAttribute<AssemblyProductAttribute>()?.Product,
+            "Open Rails");
+        public static string ApplicationName => NonEmpty(VersionInfo.FileDescription,
+            Assembly.GetEntryAssembly()?.GetCustomAttribute<AssemblyTitleAttribute>()?.Title,
+            ProductName);
+
+        static string NonEmpty(string nativeValue, string managedValue, string fallback)
+        {
+            if (!string.IsNullOrWhiteSpace(nativeValue)) return nativeValue;
+            if (!string.IsNullOrWhiteSpace(managedValue)) return managedValue;
+            return fallback;
+        }
     }
 }

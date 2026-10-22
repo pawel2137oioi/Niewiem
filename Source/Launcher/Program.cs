@@ -52,8 +52,14 @@ namespace Launcher
                 return;
             }
             // Default menu
-            var process = Process.Start(Path.Combine(path, "Menu.exe"));
-            process.WaitForInputIdle();
+            // The launcher has no further work and does not need to wait for a
+            // GUI message loop (the menu may also exit before one is created).
+            using (Process.Start(new ProcessStartInfo
+            {
+                FileName = Path.Combine(path, "Menu.exe"),
+                WorkingDirectory = path,
+                UseShellExecute = false,
+            })) { }
         }
 
         static void CheckOR(List<string> missingFiles, string path)

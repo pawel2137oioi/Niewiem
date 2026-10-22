@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net6.0</TargetFramework>
+    <Product>Open Rails startup check</Product>
+    <AssemblyTitle>Startup metadata check</AssemblyTitle>
+    <GenerateAssemblyInfo Condition="'$(EmptyMetadata)' == 'true'">false</GenerateAssemblyInfo>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Source/Orts.Common/ApplicationInfo.cs" Link="ApplicationInfo.cs" />
+  </ItemGroup>
+</Project>

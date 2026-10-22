@@ -87,6 +87,24 @@ increase, especially in High mode; GPU cost has not been measured here.
 
 ## Validation and remaining limits
 
+The first downloadable Windows ZIP exposed two startup defects: Linux-created
+apphosts had the console subsystem and lacked Win32 version resources.
+The launcher failed at WaitForInputIdle, and ApplicationInfo.ProductName was null
+when UserSettings combined the user-data directory path. The corrected package
+uses Windows SDK HostWriter and ResourceUpdater under Wine to create GUI hosts
+with the managed assemblies' version/icon/manifest resources. The packaging tool
+in Tools/WindowsAppHost verifies the subsystem, resources and product/version.
+The launcher now starts the menu in its installation directory without waiting
+for its input loop. ApplicationInfo also falls back to managed assembly metadata
+and a nonempty product name if native resources are unavailable. The independent
+Tests/Startup.Metadata runner checks both managed metadata and missing metadata
+against the production ApplicationInfo source on Linux.
+The corrected GUI hosts opened the menu, content dialog and the
+Options > Environment tab under Wine 10 with Windows Desktop Runtime 6.0.36
+and an Xorg dummy display. This is a startup smoke test, not a Windows gameplay
+or GPU test. Remote notifications/content catalogue requests failed because of
+the environment's proxy/certificate setup; the manual-content UI still opened.
+
 - The CPU regression runner passes 367 ordering checks, 1158 atmosphere/
   capability checks and 1685 precipitation/visibility/ground-layer parameter
   checks against the linked production sources. These are CPU checks, not
