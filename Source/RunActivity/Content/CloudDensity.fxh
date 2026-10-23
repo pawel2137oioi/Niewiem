@@ -1,11 +1,16 @@
 // Shared by cloud rays and scenery shadows. RGB stores coherent periodic
 // value noise at three scales; one filtered lookup replaces three white-noise
 // lookups. Keep the field anchored in world space while the camera moves.
-float CloudMass(float3 position, float3 offset, float time)
+float CloudMassAtLod(float3 position, float3 offset, float time, float lod)
 {
     float3 coord = (position + offset + float3(time * 7, 0, time * 3)) / 8192;
-    float3 field = tex3Dlod(CloudNoise, float4(coord, 0)).rgb;
+    float3 field = tex3Dlod(CloudNoise, float4(coord, lod)).rgb;
     return dot(field, float3(0.68, 0.24, 0.08));
+}
+
+float CloudMass(float3 position, float3 offset, float time)
+{
+    return CloudMassAtLod(position, offset, time, 0);
 }
 
 float CloudAmount(float mass, float coverage)

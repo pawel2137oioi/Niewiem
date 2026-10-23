@@ -129,7 +129,14 @@ namespace Orts.Viewer3D.Processes
             e.GraphicsDeviceInformation.GraphicsProfile = e.GraphicsDeviceInformation.Adapter.IsProfileSupported(GraphicsProfile.HiDef) ? GraphicsProfile.HiDef : GraphicsProfile.Reach;
 
             var pp = e.GraphicsDeviceInformation.PresentationParameters;
-            switch ((AntiAliasingMethod)Game.Settings.AntiAliasing)
+            // The modern scene already finishes with FXAA. Multisampling the
+            // final fullscreen copy adds buffer/resolve cost without improving
+            // its scene edges. Preserve MSAA for the legacy renderer.
+            var modern = !Game.Settings.UseMSTSEnv && Game.Settings.EnvironmentQuality > 0 && Game.Settings.EnvironmentIntensity > 0
+                && e.GraphicsDeviceInformation.GraphicsProfile == GraphicsProfile.HiDef
+                && (Game.Settings.DirectXFeatureLevel == "" || Game.Settings.IsDirectXFeatureLevelIncluded(DirectXFeature.Level10_0));
+            if (modern) pp.MultiSampleCount = 0;
+            else switch ((AntiAliasingMethod)Game.Settings.AntiAliasing)
             {
                 case AntiAliasingMethod.None:
                 default:

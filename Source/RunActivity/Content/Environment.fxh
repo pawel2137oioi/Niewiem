@@ -1,4 +1,5 @@
 // Shared atmospheric controls. No extra render targets or texture samples.
+#include "WeatherLighting.fxh"
 // x: strength, y: daylight, z: clear sky, w: high-quality directional scattering.
 float4 Environment;
 // x: twilight envelope, y: weather visibility of the sun,
@@ -58,17 +59,17 @@ float EnvironmentFogAmount(float3 relativePosition, float cameraHeight, float le
     return max(legacyFog, saturate(haze));
 }
 
-float3 EnvironmentLitColor(float3 textureColor, float3 legacyColor, float directLight, float nightTexture)
+float3 EnvironmentLitColor(float3 textureColor, float3 legacyColor, float directLight, float nightTexture, float sunHeight)
 {
-    if (EnvironmentDayStrength() <= 0 || nightTexture >= 1) return legacyColor;
+    if (EnvironmentAtmosphereStrength() <= 0 || nightTexture >= 1) return legacyColor;
     float sunlight = saturate(directLight);
     // Work in linear light: skylight remains in shadow, warm directional light
     // carries the lit surfaces. Convert back before blending legacy materials.
     float3 albedo = pow(max(textureColor, 0), 2.2);
-    float3 skyLight = float3(0.09, 0.13, 0.20);
-    float3 sunLight = float3(1.65, 1.48, 1.18) * sunlight;
+    float3 skyLight = lerp(float3(0.035, 0.055, 0.12), float3(0.09, 0.13, 0.20), Environment.y);
+    float3 sunLight = WeatherSunTint(sunHeight) * float3(1.65, 1.5745, 1.4390) * sunlight;
     float3 lit = pow(max(albedo * (skyLight + sunLight), 0), 1 / 2.2);
-    float amount = EnvironmentDayStrength() * Environment.z * EnvironmentWeather.y * (1 - nightTexture);
+    float amount = EnvironmentAtmosphereStrength() * Environment.z * EnvironmentWeather.y * (1 - nightTexture);
     return lerp(legacyColor, lit, amount);
 }
 

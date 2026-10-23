@@ -491,6 +491,7 @@ namespace Orts.Viewer3D
         Texture2D SnowTexture;
         Texture2D[] DynamicPrecipitationTexture = new Texture2D[12];
         IEnumerator<EffectPass> ShaderPasses;
+        EffectTechnique ActiveTechnique;
 
         public PrecipitationMaterial(Viewer viewer)
             : base(viewer, null)
@@ -510,14 +511,23 @@ namespace Orts.Viewer3D
         public override void SetState(GraphicsDevice graphicsDevice, Material previousMaterial)
         {
             var shader = Viewer.MaterialManager.PrecipitationShader;
-            shader.CurrentTechnique = shader.Techniques["Precipitation"];
-            if (ShaderPasses == null)
+            var modern = Viewer.MaterialManager.SceneryShader.AdvancedEnvironment && Viewer.Settings.EnvironmentIntensity > 0;
+            shader.CurrentTechnique = shader.Techniques[modern ? "PrecipitationAdvanced" : "Precipitation"];
+            if (ShaderPasses == null || ActiveTechnique != shader.CurrentTechnique)
             {
-                ShaderPasses = shader.Techniques["Precipitation"].Passes.GetEnumerator();
+                ActiveTechnique = shader.CurrentTechnique;
+                ShaderPasses = ActiveTechnique.Passes.GetEnumerator();
             }
 
             shader.LightVector.SetValue(Viewer.Settings.UseMSTSEnv ? Viewer.World.MSTSSky.mstsskysolarDirection : Viewer.World.Sky.SolarDirection);
             shader.ParticleSize.SetValue(1f);
+            var weather = Viewer.Simulator.Weather;
+            var environment = new EnvironmentParameters(Viewer.Settings.EnvironmentQuality, Viewer.Settings.EnvironmentIntensity,
+                Viewer.World.Sky.SolarDirection.Y, weather.CloudCoverFactor, Viewer.Settings.UseMSTSEnv,
+                weather.PrecipitationIntensityPPSPM2 / PrecipitationViewer.MaxIntensityPPSPM2, weather.VisibilityM);
+            shader.Environment.SetValue(new Vector4(environment.Strength, environment.Daylight, environment.Twilight,
+                MathHelper.Clamp(weather.PrecipitationLiquidity,0,1)));
+            shader.Visibility.SetValue(Math.Max(20,weather.VisibilityM));
             if (Viewer.Simulator.Weather.PrecipitationLiquidity == 0 || Viewer.Simulator.Weather.PrecipitationLiquidity == 1)
             {
                 shader.PrecipitationTex.SetValue(Viewer.Simulator.WeatherType == Orts.Formats.Msts.WeatherType.Snow ? SnowTexture :
@@ -588,6 +598,7 @@ namespace Orts.Viewer3D
         internal readonly EffectParameter CameraTileXZ;
         internal readonly EffectParameter CurrentTime;
         internal readonly EffectParameter PrecipitationTex;
+        internal readonly EffectParameter Environment, Visibility;
 
         public PrecipitationShader(GraphicsDevice graphicsDevice)
             : base(graphicsDevice, "PrecipitationShader")
@@ -599,6 +610,8 @@ namespace Orts.Viewer3D
             CameraTileXZ = Parameters["cameraTileXZ"];
             CurrentTime = Parameters["currentTime"];
             PrecipitationTex = Parameters["precipitation_Tex"];
+            Environment = Parameters["PrecipitationEnvironment"];
+            Visibility = Parameters["PrecipitationVisibility"];
         }
 
         public void SetMatrix(Matrix world, ref Matrix view, ref Matrix projection)

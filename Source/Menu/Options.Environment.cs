@@ -14,6 +14,7 @@ namespace Menu
         NumericUpDown environmentCloudResolution;
         CheckBox environmentColorGrading, environmentBloom, environmentWaterReflections, environmentVolumetricClouds;
         bool applyBalancedShadowSettings;
+        bool applyFpsShadowSettings;
 
         void InitializeEnvironmentOptions()
         {
@@ -113,6 +114,7 @@ namespace Menu
                 numericPerformanceTunerTarget.Value = 60;
                 numericPerformanceTunerTarget.Enabled = labelPerformanceTunerTarget.Enabled = true;
                 applyBalancedShadowSettings = true;
+                applyFpsShadowSettings = false;
             };
             layout.Controls.Add(preset, 0, 11);
             layout.SetColumnSpan(preset, 2);
@@ -128,6 +130,19 @@ namespace Menu
             };
             layout.Controls.Add(highPreset, 0, 12);
             layout.SetColumnSpan(highPreset, 2);
+            var fpsPreset = new Button { AutoSize = true, Text = catalog.GetString("Apply High / FPS preset"), Margin = new Padding(0, 8, 0, 0) };
+            fpsPreset.Click += (sender, args) =>
+            {
+                preset.PerformClick();
+                environmentQuality.SelectedIndex = 2;
+                environmentIntensity.Value = 100;
+                environmentCloudResolution.Value = 33;
+                environmentWaterReflections.Checked = false;
+                numericViewingDistance.Value = 1500;
+                applyFpsShadowSettings = true;
+            };
+            layout.Controls.Add(fpsPreset, 0, 13);
+            layout.SetColumnSpan(fpsPreset, 2);
             environmentQuality.SelectedIndexChanged += (sender, args) =>
             {
                 environmentIntensity.Enabled = environmentSunGlare.Enabled = environmentQuality.SelectedIndex > 0;
@@ -155,7 +170,7 @@ namespace Menu
             {
                 // Defer mutation until OK; Cancel must preserve the user's settings.
                 Settings.ShadowMapCount = 2;
-                Settings.ShadowMapResolution = environmentQuality.SelectedIndex >= 2 ? 2048 : 1024;
+                Settings.ShadowMapResolution = environmentQuality.SelectedIndex >= 2 && !applyFpsShadowSettings ? 2048 : 1024;
                 Settings.ShadowMapDistance = 0;
                 Settings.ShadowMapBlur = true;
                 Settings.DirectXFeatureLevel = ""; // Re-detect the available profile when the activity starts.

@@ -80,5 +80,6 @@ internal static class Program
         Console.WriteLine("PASS: compiled 3D cloud integration and depth occlusion.");
         SceneCheck.Run(device);
         CloudQualityCheck.Run(device, output);
+        WeatherCheck.Run(device, output);
     }
 }

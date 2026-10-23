@@ -32,6 +32,9 @@ float particleSize;
 
 float2 cameraTileXZ;
 float currentTime;
+float4 PrecipitationEnvironment; // strength, daylight, twilight, rain fraction
+float PrecipitationVisibility;
+#include "WeatherLighting.fxh"
 
 static float2 texCoords[4] = { float2(0, 0), float2(1, 0), float2(1, 1), float2(0, 1) };
 static float2 offsets[4] = { float2(-0.5f, 0.5f), float2(0.5f, 0.5f), float2(0.5f, -0.5f), float2(-0.5f, -0.5f) };
@@ -64,27 +67,36 @@ struct VERTEX_OUTPUT
 {
 	float4 Position	: POSITION;
 	float2 TexCoord : TEXCOORD0;
+    float Distance : TEXCOORD1;
 };
 
 ////////////////////    V E R T E X   S H A D E R S    /////////////////////////
 
 // Precipitation vertex shader - calculates raindrop/snowflake positions.
-VERTEX_OUTPUT VSPrecipitation(in VERTEX_INPUT In)
+VERTEX_OUTPUT VSPrecipitation(uniform bool Advanced, in VERTEX_INPUT In)
 {
 	VERTEX_OUTPUT Out = (VERTEX_OUTPUT)0;
 	
 	float age = (currentTime - In.StartPosition_StartTime.w) / (In.EndPosition_EndTime.w - In.StartPosition_StartTime.w);
 	int vertIdx = (int)In.TileXZ_Vertex.z;
 	float3 right = invView[0].xyz;
-	float3 up = normalize(In.StartPosition_StartTime.xyz - In.EndPosition_EndTime.xyz);
+    float3 motion = In.StartPosition_StartTime.xyz - In.EndPosition_EndTime.xyz;
+    float3 up = motion * rsqrt(max(dot(motion,motion),0.000001));
+    float2 size = particleSize.xx;
+    if (Advanced) {
+        float variation = 0.75 + frac(In.StartPosition_StartTime.w * 13.731) * 0.5;
+        size *= lerp(float2(0.16,0.16), float2(0.08,0.80), PrecipitationEnvironment.w) * variation;
+        if (PrecipitationEnvironment.w < 0.5) up = invView[1].xyz;
+    }
 	
 	In.StartPosition_StartTime.xyz = lerp(In.StartPosition_StartTime.xyz, In.EndPosition_EndTime.xyz, age);
 	In.StartPosition_StartTime.xz += (cameraTileXZ - In.TileXZ_Vertex.xy) * float2(-2048, 2048);
-	In.StartPosition_StartTime.xyz += right * offsets[vertIdx].x * particleSize;
-	In.StartPosition_StartTime.xyz += up * offsets[vertIdx].y * particleSize;
+	In.StartPosition_StartTime.xyz += right * offsets[vertIdx].x * size.x;
+	In.StartPosition_StartTime.xyz += up * offsets[vertIdx].y * size.y;
 	
 	Out.Position = mul(float4(In.StartPosition_StartTime.xyz, 1), worldViewProjection);
 	Out.TexCoord = texCoords[vertIdx];
+    Out.Distance = length(In.StartPosition_StartTime.xyz - invView[3].xyz);
 	
 	return Out;
 }
@@ -124,13 +136,40 @@ float4 PSPrecipitation(in VERTEX_OUTPUT In) : COLOR0
 	return color;
 }
 
+float4 PSPrecipitationAdvanced(in VERTEX_OUTPUT In) : COLOR0
+{
+    float2 p = In.TexCoord * 2 - 1;
+    float rain = exp2(-p.x * p.x * 18) * saturate(1 - abs(p.y));
+    float snow = 1 - smoothstep(0.12,1,dot(p,p));
+    float liquidity = PrecipitationEnvironment.w;
+    float shape = lerp(snow,rain,liquidity);
+    float daylight = PrecipitationEnvironment.y;
+    float3 tint = lerp(float3(0.065,0.085,0.13),float3(0.90,0.94,1.0),daylight);
+    tint *= lerp(1.0,0.72,liquidity);
+    tint += WeatherSunTint(LightVector.y) * PrecipitationEnvironment.z * 0.18;
+    float fade = smoothstep(0.5,2,In.Distance)
+        * exp(-In.Distance / max(20,PrecipitationVisibility))
+        * (1 - smoothstep(80,160,In.Distance));
+    return float4(tint,shape * fade * lerp(0.85,0.48,liquidity));
+}
+
+VERTEX_OUTPUT VSPrecipitationLegacy(in VERTEX_INPUT In) { return VSPrecipitation(false,In); }
+VERTEX_OUTPUT VSPrecipitationAdvanced(in VERTEX_INPUT In) { return VSPrecipitation(true,In); }
+
 ////////////////////    T E C H N I Q U E S    /////////////////////////////////
 
 technique Precipitation
 {
 	pass Pass_0
 	{
-		VertexShader = compile vs_4_0_level_9_1 VSPrecipitation();
+		VertexShader = compile vs_4_0_level_9_1 VSPrecipitationLegacy();
 		PixelShader = compile ps_4_0_level_9_1 PSPrecipitation();
 	}
+}
+
+technique PrecipitationAdvanced {
+    pass Pass_0 {
+        VertexShader = compile vs_4_0 VSPrecipitationAdvanced();
+        PixelShader = compile ps_4_0 PSPrecipitationAdvanced();
+    }
 }

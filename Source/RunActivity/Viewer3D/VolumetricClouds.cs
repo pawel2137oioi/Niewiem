@@ -12,7 +12,7 @@ namespace Orts.Viewer3D
         readonly Effect effect;
         readonly Texture3D noise;
         internal Texture3D NoiseTexture => noise;
-        RenderTarget2D clouds;
+        RenderTarget2D clouds, reflectionClouds;
         static readonly VertexPositionTexture[] Quad = {
             new VertexPositionTexture(new Vector3(-1,1,0),new Vector2(0,0)),
             new VertexPositionTexture(new Vector3(1,1,0),new Vector2(1,0)),
@@ -32,27 +32,46 @@ namespace Orts.Viewer3D
                             ValueNoise(x, y, z, 8, 0x917345u),
                             ValueNoise(x, y, z, 16, 0x529acdu),
                             ValueNoise(x, y, z, 32, 0x376b19u));
-            noise = new Texture3D(device,size,size,size,false,SurfaceFormat.Color);
-            noise.SetData(data);
+            noise = new Texture3D(device,size,size,size,true,SurfaceFormat.Color);
+            // Filter density once, including all mip levels used for long rays.
+            var levelSize = size;
+            for (var level = 0; ; level++)
+            {
+                noise.SetData(level, 0, 0, levelSize, levelSize, 0, levelSize, data, 0, data.Length);
+                if (levelSize == 1) break;
+                var nextSize = levelSize / 2;
+                var filtered = new Color[nextSize * nextSize * nextSize];
+                for (var z = 0; z < nextSize; z++) for (var y = 0; y < nextSize; y++) for (var x = 0; x < nextSize; x++)
+                {
+                    var sum = Vector4.Zero;
+                    for (var dz = 0; dz < 2; dz++) for (var dy = 0; dy < 2; dy++) for (var dx = 0; dx < 2; dx++)
+                        sum += data[((z * 2 + dz) * levelSize + y * 2 + dy) * levelSize + x * 2 + dx].ToVector4();
+                    filtered[(z * nextSize + y) * nextSize + x] = new Color(sum / 8);
+                }
+                data = filtered; levelSize = nextSize;
+            }
             effect.Parameters["NoiseTexture"].SetValue(noise);
         }
         internal void Draw(RenderTarget2D scene, Texture2D depth, Matrix view, Matrix projection,
             Vector3 offset, Vector3 sun, Vector3 fog, EnvironmentParameters environment, float coverage, float ground, float time,
-            int resolutionPercent = 50)
+            int resolutionPercent = 50, bool reflection = false, int sampleBudget = 48)
         {
-            // Keep the same cloud target for the main view and water reflections.
+            if (coverage < 0.02f || environment.Strength <= 0) return;
             // Bound total pixels as well as width for portrait/ultrawide screens.
             var screenWidth = device.PresentationParameters.BackBufferWidth;
             var screenHeight = device.PresentationParameters.BackBufferHeight;
             var scale = Math.Clamp(resolutionPercent, 25, 100) / 100f;
             scale = Math.Min(scale, 1280f / screenWidth);
             scale = Math.Min(scale, (float)Math.Sqrt(1280f * 720 / ((double)screenWidth * screenHeight)));
+            if (reflection) scale *= 0.5f;
             var width = Math.Max(1, (int)(screenWidth * scale));
             var height = Math.Max(1,width * device.PresentationParameters.BackBufferHeight / device.PresentationParameters.BackBufferWidth);
-            if (clouds == null || clouds.Width != width || clouds.Height != height)
+            var cloudTarget = reflection ? reflectionClouds : clouds;
+            if (cloudTarget == null || cloudTarget.Width != width || cloudTarget.Height != height)
             {
-                clouds?.Dispose();
-                clouds = new RenderTarget2D(device,width,height,false,SurfaceFormat.HalfVector4,DepthFormat.None);
+                cloudTarget?.Dispose();
+                cloudTarget = new RenderTarget2D(device,width,height,false,SurfaceFormat.HalfVector4,DepthFormat.None);
+                if (reflection) reflectionClouds = cloudTarget; else clouds = cloudTarget;
             }
             var inverseView = Matrix.Invert(view);
             effect.Parameters["InverseViewProjection"].SetValue(Matrix.Invert(view * projection));
@@ -62,15 +81,17 @@ namespace Orts.Viewer3D
             effect.Parameters["FogColor"].SetValue(fog);
             effect.Parameters["CloudLayer"].SetValue(new Vector4(ground + 750, 1000, MathHelper.Clamp(coverage,0,1),time));
             effect.Parameters["CloudLight"].SetValue(new Vector4(environment.Daylight,environment.ClearSky,environment.Strength,environment.SunVisibility));
+            effect.Parameters["CloudTwilight"].SetValue(environment.Twilight * environment.SunVisibility);
+            effect.Parameters["CloudSampling"].SetValue(new Vector2(Math.Clamp(sampleBudget, 12, 128), sampleBudget >= 128 ? 1 : 160));
             effect.Parameters["LowPixelSize"].SetValue(new Vector2(1f/width,1f/height));
             effect.Parameters["DepthTexture"].SetValue(depth);
             effect.Parameters["CloudTexture"].SetValue((Texture2D)null);
-            device.SetRenderTarget(clouds);
+            device.SetRenderTarget(cloudTarget);
             device.BlendState = BlendState.Opaque;
             DrawQuad("MarchClouds");
             device.Textures[0] = null; device.Textures[1] = null;
             device.SetRenderTarget(scene);
-            effect.Parameters["CloudTexture"].SetValue(clouds);
+            effect.Parameters["CloudTexture"].SetValue(cloudTarget);
             device.BlendState = BlendState.AlphaBlend;
             DrawQuad("CompositeClouds");
             effect.Parameters["DepthTexture"].SetValue((Texture2D)null);
@@ -115,6 +136,6 @@ namespace Orts.Viewer3D
             effect.CurrentTechnique.Passes[0].Apply();
             device.DrawUserPrimitives(PrimitiveType.TriangleStrip,Quad,0,2);
         }
-        public void Dispose() { clouds?.Dispose(); noise.Dispose(); effect.Dispose(); }
+        public void Dispose() { clouds?.Dispose(); reflectionClouds?.Dispose(); noise.Dispose(); effect.Dispose(); }
     }
 }

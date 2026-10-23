@@ -169,6 +169,35 @@ float3 ContrastSaturationBrightness(float3 color, float brt, float sat, float co
 	return conColor;
 }
 
+float3 AtmosphereSky(VERTEX_OUTPUT In, float3 stars)
+{
+    float3 ray = normalize(In.Normal);
+    float3 sun = LightVector.xyz * LightVector.w;
+    float height = saturate(ray.y);
+    float horizon = exp(-height * 5.5);
+    float day = Environment.y;
+    float twilight = EnvironmentWeather.x;
+    float clear = Environment.z;
+    float3 daySky = lerp(float3(0.12,0.29,0.56), float3(0.67,0.76,0.83), horizon);
+    daySky = lerp(float3(0.39,0.43,0.49) + horizon * 0.10, daySky, clear);
+    float3 nightSky = lerp(float3(0.003,0.006,0.022), float3(0.012,0.018,0.038), horizon);
+    float3 color = lerp(nightSky, daySky, day);
+    float towardSun = saturate(dot(ray.xz, sun.xz) / max(0.0001, length(ray.xz) * length(sun.xz)));
+    float warmBand = exp(-pow((height - 0.06) / 0.22, 2));
+    float3 duskSky = lerp(float3(0.075,0.10,0.23), float3(1.0,0.30,0.065),
+        warmBand * (0.12 + 0.88 * pow(towardSun, 3)));
+    duskSky = lerp(duskSky * 0.38, duskSky, clear * EnvironmentWeather.y);
+    color = lerp(color, duskSky, twilight * (0.30 + 0.70 * horizon));
+    float sunDot = clamp(dot(ray, sun), -1, 1);
+    float visibility = smoothstep(-0.025,0.01,sun.y) * EnvironmentWeather.y * clear;
+    float disk = smoothstep(0.999978,0.999990,sunDot) * visibility;
+    float halo = (pow(saturate(sunDot),48) * 0.13 + pow(saturate(sunDot),512) * 0.20)
+        * visibility * EnvironmentSunGlare;
+    color += WeatherSunTint(sun.y) * (disk * 3 + halo);
+    color += stars * (1 - smoothstep(-0.20,-0.06,sun.y)) * clear;
+    return max(color,0);
+}
+
 float4 PSSky(uniform bool Advanced, VERTEX_OUTPUT In) : COLOR
 {
 	// Get the color information for the current pixel
@@ -190,6 +219,11 @@ float4 PSSky(uniform bool Advanced, VERTEX_OUTPUT In) : COLOR
 		skyColor = lerp(starColor, skyColor, pow(abs(SkyColor.y),0.125));
 		}
 	
+    // The modern atmosphere replaces the legacy east/west-dependent glow.
+    // One solar palette drives dawn and dusk continuously through the horizon.
+    if (Advanced && Environment.x > 0)
+        return float4(lerp(skyColor.rgb, AtmosphereSky(In, starColor.rgb), Environment.x),1);
+
     if (Advanced) {
         float3 ray = normalize(In.Normal);
         float height = saturate(ray.y);
@@ -331,7 +365,16 @@ float4 PSClouds(uniform bool Advanced, VERTEX_OUTPUT In) : COLOR
 }
 
 float4 PSSkyLegacy(VERTEX_OUTPUT In) : COLOR { return PSSky(false, In); }
-float4 PSSkyAdvanced(VERTEX_OUTPUT In) : COLOR { return PSSky(true, In); }
+struct SkySceneOutput { float4 Color : SV_TARGET0; float4 Depth : SV_TARGET1; };
+SkySceneOutput PSSkyAdvanced(VERTEX_OUTPUT In)
+{
+    SkySceneOutput result;
+    result.Color = PSSky(true, In);
+    // The sky is drawn while the cloud distance target is bound. Explicitly
+    // write infinity instead of relying on an unwritten MRT output's contents.
+    result.Depth = float4(40000,0,0,1);
+    return result;
+}
 float4 PSCloudsLegacy(VERTEX_OUTPUT In) : COLOR { return PSClouds(false, In); }
 float4 PSCloudsAdvanced(VERTEX_OUTPUT In) : COLOR { return PSClouds(true, In); }
 

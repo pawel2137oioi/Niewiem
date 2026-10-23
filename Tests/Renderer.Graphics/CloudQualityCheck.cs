@@ -20,12 +20,12 @@ internal static class CloudQualityCheck
         var view = Matrix.CreateLookAt(new Vector3(0, 100, 0), new Vector3(0, 1100, -1500), Vector3.Up);
         var projection = Matrix.CreatePerspectiveFieldOfView(MathHelper.Pi / 3, 2, 0.1f, 40000);
         var environment = new EnvironmentParameters(2, 100, 0.8f, 0.65f, false);
-        Color[] Render(Matrix p, int resolution = 50, float coverage = 0.65f)
+        Color[] Render(Matrix p, int resolution = 50, float coverage = 0.65f, Matrix? camera = null, int budget = 48, bool reflection = false)
         {
             device.SetRenderTarget(target);
             device.Clear(new Color(110, 155, 200));
-            volume.Draw(target, depth, view, p, Vector3.Zero, Vector3.Normalize(new Vector3(-1, 2, -1)),
-                new Vector3(0.55f, 0.65f, 0.75f), environment, coverage, 0, 0, resolution);
+            volume.Draw(target, depth, camera ?? view, p, Vector3.Zero, Vector3.Normalize(new Vector3(-1, 2, -1)),
+                new Vector3(0.55f, 0.65f, 0.75f), environment, coverage, 0, 0, resolution, reflection, budget);
             device.SetRenderTarget(null);
             var pixels = new Color[width * height]; target.GetData(pixels); return pixels;
         }
@@ -67,5 +67,20 @@ internal static class CloudQualityCheck
         var clear = Render(projection, 50, 0);
         if (clear.Any(c => c.R != 110 || c.G != 155 || c.B != 200)) throw new Exception("Clear weather retained cloud radiance.");
         Console.WriteLine("PASS: cloud camera-pan stability, deterministic field, bright daylight, quality resize and clear sky.");
+        var horizonView = Matrix.CreateLookAt(new Vector3(0,100,0),new Vector3(0,180,-1000),Vector3.Up);
+        var horizon = Render(projection,camera:horizonView);
+        var reference = Render(projection,camera:horizonView,budget:128);
+        Save("cloud-horizon",horizon); Save("cloud-horizon-reference",reference);
+        var rowErrors = new double[height];
+        for (var y=0;y<height;y++) for(var x=0;x<width;x++)
+            rowErrors[y] += (horizon[y*width+x].R-reference[y*width+x].R)/(double)width;
+        double stripeEnergy=0;
+        for(var y=1;y<height-1;y++) stripeEnergy += Math.Pow(rowErrors[y]-(rowErrors[y-1]+rowErrors[y+1])*0.5,2);
+        var stripeRms=Math.Sqrt(stripeEnergy/(height-2));
+        Console.WriteLine($"Horizon row-band residual against 128 intervals: {stripeRms:F3} / 255.");
+        if(stripeRms>1.5) throw new Exception("Horizon integration forms horizontal bands relative to the dense reference.");
+        Render(projection,reflection:true,budget:24);
+        Render(projection); // Separate reflection/main targets must survive alternating views.
+        Console.WriteLine("PASS: horizon integration against dense reference and separate reflection resources.");
     }
 }

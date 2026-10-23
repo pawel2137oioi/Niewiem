@@ -1,8 +1,21 @@
 OPEN RAILS - MODERN RENDERER PREVIEW
 
-AKTUALIZACJA CHMUR
+AKTUALIZACJA HORYZONTU, POGODY I PROFILU FPS
+Filtrowanie gestosci i adaptacyjne probkowanie ograniczaja pasy przy horyzoncie.
+Obraz nieba ma jawna glebokosc dla chmur. Wschod/zachod maja wspolne barwy
+slonca w niebie, chmurach i terenie. Deszcz ma waskie smugi, snieg miekkie platki,
+z oswietleniem dzien/noc i wygaszaniem przy kamerze.
+Options > Environment > Apply High / FPS preset zachowuje chmury 3D (33%),
+wylacza odbicia sceny w wodzie, zmniejsza cienie i zasieg do 1500 m.
+Zatwierdz OK i uruchom nowa jazde. 60 FPS jest celem, nie potwierdzonym wynikiem.
+High visual preset pozostaje opcja o wiekszym koszcie. Odbicia maja teraz
+ograniczony budzet rozdzielczosci; chmury w odbiciach osobny mniejszy bufor.
+W nowym rendererze usunieto tez zbedne MSAA koncowego obrazu; krawedzie sceny
+nadal wygladza FXAA. W trybie Original pozostaje poprzednie MSAA.
+
+USTAWIENIA CHMUR
 Usunieto ekranowe losowe probkowanie powodujace pelzajace ziarno przy ruchu.
-Chmury korzystaja ze spojnego szumu 3D, 32 probek i domyslnie 50% rozdzielczosci.
+Chmury korzystaja ze spojnego szumu 3D, adaptacyjnych probek i domyslnie 50% rozdzielczosci.
 Options > Environment > Cloud resolution (%): 50 to ustawienie domyslne;
 25 obniza koszt, 75/100 zwieksza ostrosc. Obraz chmur ma limit 1280x720 pikseli.
 High visual preset ustawia 50. Efekt wymaga uruchomienia nowej jazdy po zmianie.

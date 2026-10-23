@@ -525,7 +525,7 @@ float4 PSImage(uniform bool ShaderModel3, uniform bool ClampTexCoords, uniform b
     float shadow = _PSGetShadowEffect(ShaderModel3, true, In);
     float directLight = _PSGetAmbientEffect(In) * shadow;
 	float3 litColor = Color.rgb * lerp(ShadowBrightness, FullBrightness, saturate(directLight + ImageTextureIsNight));
-    if (Advanced) litColor = EnvironmentLitColor(Color.rgb, litColor, directLight * In.Color.a, ImageTextureIsNight);
+    if (Advanced) litColor = EnvironmentLitColor(Color.rgb, litColor, directLight * In.Color.a, ImageTextureIsNight, LightVector_ZFar.y);
 	// Specular effect next.
 	litColor += _PSGetSpecularEffect(In) * shadow;
 	// Overcast blanks out ambient, shadow and specular effects (so use original Color).
@@ -565,7 +565,7 @@ float4 PSVegetation(uniform bool Advanced, in VERTEX_OUTPUT In) : COLOR0
 	float3 litColor = Color.rgb * VegetationAmbientModifier;
     float canopyLight = saturate(In.Normal_Light.w) * lerp(0.55, 1.0, saturate(1 - In.TexCoords.y));
     if (Advanced) canopyLight *= _PSGetShadowEffect(true, false, In);
-    if (Advanced) litColor = EnvironmentLitColor(Color.rgb, litColor, canopyLight * In.Color.a, ImageTextureIsNight);
+    if (Advanced) litColor = EnvironmentLitColor(Color.rgb, litColor, canopyLight * In.Color.a, ImageTextureIsNight, LightVector_ZFar.y);
 	// No specular effect for vegetation.
 	// Overcast blanks out ambient, shadow and specular effects (so use original Color).
 	litColor = lerp(litColor, _PSGetOvercastColor(Color, In), Overcast.x);
@@ -591,7 +591,7 @@ float4 PSTerrain(uniform bool ShaderModel3, uniform bool Advanced, in VERTEX_OUT
 	// Ambient and shadow effects apply first; night-time textures cancel out all normal lighting.
     float directLight = _PSGetAmbientEffect(In) * _PSGetShadowEffect(ShaderModel3, true, In);
 	float3 litColor = Color.rgb * lerp(ShadowBrightness, FullBrightness, saturate(directLight + ImageTextureIsNight));
-    if (Advanced) litColor = EnvironmentLitColor(Color.rgb, litColor, directLight * In.Color.a, ImageTextureIsNight);
+    if (Advanced) litColor = EnvironmentLitColor(Color.rgb, litColor, directLight * In.Color.a, ImageTextureIsNight, LightVector_ZFar.y);
 	// No specular effect for terrain.
 	// Overcast blanks out ambient, shadow and specular effects (so use original Color).
 	litColor = lerp(litColor, _PSGetOvercastColor(Color, In), Overcast.x);
@@ -627,7 +627,7 @@ float4 PSDarkShade(uniform bool Advanced, in VERTEX_OUTPUT In) : COLOR0
     clip(Color.a - ReferenceAlpha);
 	// Fixed ambient and shadow effects at darkest level.
 	float3 litColor = Color.rgb * ShadowBrightness;
-    if (Advanced) litColor = EnvironmentLitColor(Color.rgb, litColor, 0, ImageTextureIsNight);
+    if (Advanced) litColor = EnvironmentLitColor(Color.rgb, litColor, 0, ImageTextureIsNight, LightVector_ZFar.y);
 	// No specular effect for dark shade.
 	// Overcast blanks out ambient, shadow and specular effects (so use original Color).
 	litColor = lerp(litColor, _PSGetOvercastColor(Color, In), Overcast.x);

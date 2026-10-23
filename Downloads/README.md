@@ -15,6 +15,14 @@ szum 3D i domyslnie 50% rozdzielczosci. W Options > Environment jest regulacja
 Cloud resolution (%) 25–100; 25 obniza koszt, 50 jest ustawieniem domyslnym.
 Rozjasniono dzienne chmury, a bloom obejmuje mocniejsze swiatla.
 
+Nowsza aktualizacja dodaje filtrowanie przy horyzoncie, adaptacyjne probkowanie,
+spojne oswietlenie wschodu/zachodu oraz nowe smugi deszczu i platki sniegu.
+Przycisk **Apply High / FPS preset** zachowuje chmury 3D, a obniza ich
+rozdzielczosc, cienie i zasieg oraz wylacza odbicia sceny w wodzie. Odbicia
+w profilu wizualnym maja tez mniejszy budzet renderowania. Zmiany przeszly
+testy shaderow przez Wine; nie sa pomiarem FPS ani potwierdzeniem usuniecia
+wszystkich pasow na trasie lub uzyskania wygladu SimRaila.
+
 Rozpakuj do nowego folderu i uruchom OpenRails.exe. Dodaj zawartosc przez
 Content > Manually Installed > Add > Browse. Paczka startuje z High i sila 100.
 Obejrzyj widok 2/8; chmury wymagaja zachmurzenia (Ctrl i =/+ zwieksza je).

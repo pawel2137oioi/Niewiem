@@ -18,8 +18,10 @@ namespace Orts.Viewer3D
         internal bool Begin(GraphicsDevice device, float height, int cameraTileX, int cameraTileZ, Vector3 cameraEye)
         {
             if (tileX != cameraTileX || tileZ != cameraTileZ || Vector3.DistanceSquared(eye,cameraEye)>100) Valid=false;
-            var width = Math.Max(1, device.PresentationParameters.BackBufferWidth / 2);
-            var pixelsHigh = Math.Max(1, device.PresentationParameters.BackBufferHeight / 2);
+            var scale = Math.Min(0.5f, 640f / device.PresentationParameters.BackBufferWidth);
+            scale = Math.Min(scale, (float)Math.Sqrt(640f * 360 / ((double)device.PresentationParameters.BackBufferWidth * device.PresentationParameters.BackBufferHeight)));
+            var width = Math.Max(1, (int)(device.PresentationParameters.BackBufferWidth * scale));
+            var pixelsHigh = Math.Max(1, (int)(device.PresentationParameters.BackBufferHeight * scale));
             if (Target == null || Target.Width != width || Target.Height != pixelsHigh)
             {
                 Target?.Dispose();
