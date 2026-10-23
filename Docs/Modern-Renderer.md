@@ -16,8 +16,8 @@ The 2D cab retains its colors. Original/MSTS selects the legacy path.
 The preview requires DirectX 10+; older hardware has not been validated with
 the expanded effect binaries.
 
-High clouds are actual 3D density integration, not cloud billboards. A fixed
-64-cubed noise texture drives moving density within a height layer, 12–48 bounded
+All enabled volumetric levels use actual 3D density integration. A fixed
+64-cubed noise texture drives moving density within a height layer, quality-dependent bounded
 integration intervals with two density samples per interval, two light samples,
 Beer extinction, ambient light and forward
 scattering. Scene depth terminates each ray. Depth-aware upsampling limits
@@ -25,11 +25,11 @@ leakage at foreground silhouettes. Noise-driven cloud shadows modulate direct
 sunlight per vertex. Clear weather produces no clouds; Ctrl and the =/+ key
 increase cloud cover, Ctrl and - decrease it using the existing weather controls.
 
-Cloud resolution defaults to 50% of screen dimensions, with 25–100% available
-in Environment options; width and total pixels are capped at 1280 and 1280×720.
-The previous preview used 25% with a 640-pixel width cap. 25% is the cheaper
-choice; High visual preset chooses 50%. The noise texture is generated once
-and reused, including its filtered mip chain. There is no
+Cloud resolution is adjustable from 25–100%, with suggested scales of
+25/33/50/75% for Low/Medium/High/Ultra. The public Medium configuration starts at
+33%. Width and pixel count are bounded at 1280×720, or 1536×864 on Ultra.
+The noise texture is generated once and reused, including its filtered mip
+chain. There is no
 temporal history or full-resolution volume march. A bounded flat cloud layer
 is an approximation and needs visual tuning, especially around mountains and
 when flying through clouds.
@@ -61,7 +61,7 @@ High renders the prepared opaque scenery, sky and cloud volume into a
 reduced-resolution reflected view every other frame, reusing shadow maps.
 Reflection color/depth are now capped at 640×360 pixels. Reflection clouds
 use a separate reusable target at half the main cloud dimensions and a
-24-interval ceiling. This avoids allocating/resizing shared targets when
+quality-dependent interval ceiling (24 on High). This avoids allocating/resizing shared targets when
 alternating the two views, and limits work that was duplicated at main-view
 cloud quality. The main view's cloud resolution setting is preserved.
 Underwater geometry is clipped. Water and UI do not recurse into reflections.
@@ -70,7 +70,7 @@ fall back to a sky approximation. Reflections reuse the prepared geometry, so
 objects outside the main view's culling volume may be missing. Arbitrary sloped
 water, refraction and underwater depth absorption remain unfinished.
 
-Balanced uses cheaper sky reflections and reduced-resolution bloom. HDR and
+Off for scene reflections uses a cheaper sky approximation. HDR and
 single-channel metric depth use matching non-MSAA targets. FXAA in the final
 scene pass provides AA when antialiasing is enabled; the legacy path keeps its
 MSAA behavior. This avoids relying on optional multisampled HDR format support.
@@ -81,12 +81,22 @@ GPU resources are reused between frames, resized on screen changes, and
 disposed on the render thread. Reflection images keep their own projection
 and are invalidated when camera tiles, position or water height change.
 
-The High / FPS preset keeps volumetric clouds, at 33% resolution, while
-disabling scene water reflections, choosing two 1024-pixel shadow maps,
-limiting view distance to 1500 m, enabling model instancing and setting the
-existing performance tuner's target to 60 FPS. Applying or cancelling the
-options follows the existing deferred-save behavior. The target is not a
-measured result, and higher FPS on a particular machine is not guaranteed.
+Independent Off/Low/Medium/High/Ultra settings replace the earlier three
+machine-specific preset buttons. Cloud, reflection, bloom and shadow levels
+can be mixed. Cloud quality sets integration accuracy, default scale and cloud
+shadow eligibility; scale can then be overridden. Reflection quality sets size
+and refresh cadence; bloom sets buffer resolution; shadows set cascade size/count.
+Low/Medium/High/Ultra starting presets also set viewing distance and instancing,
+without changing monitor resolution, VSync, performance tuner or its FPS target.
+The new public ZIP defaults to Medium in a 1280×720 window.
+
+Older configuration files retain checkbox/umbrella behavior through -1 migration
+values until options are saved. Explicit feature levels work independently of
+the old High umbrella; Original/MSTS still bypasses the modern pipeline. Controls
+show inactive states and explanatory text. All writes are deferred until OK;
+Cancel preserves the settings object and INI. Existing custom shadow dimensions
+are retained unless a shadow level is explicitly applied. See
+[Graphics quality guide](Graphics-Quality.md) for profiles and rendering budgets.
 
 ## Dawn, dusk and precipitation
 
@@ -105,6 +115,17 @@ material authoring, puddles, splash particles, windshield simulation and
 dynamic snow accumulation have not been added by this change.
 
 ## Validation
+
+The independent-quality update adds CPU checks for migration, mixed settings,
+clamps and monotonic budgets, plus actual DirectX checks for every cloud,
+reflection and bloom level including Off and reflection refresh cadence.
+Tests/Menu.Environment hosts the production options page with the production
+settings library: all four presets, mixed effects, enabled states, deferred
+save/Cancel, display/FPS preservation and a real temporary INI round trip are
+checked under Wine. It does not instantiate the rest of the menu/updater.
+Full Menu and RunActivity Release builds are also required. These tests do not
+constitute FPS measurements across different PCs.
+
 
 Tests/Renderer.Graphics links the production postprocessor, volume renderer
 and parameter code and executes compiled DirectX effects. It checks black
@@ -168,8 +189,8 @@ progress during the first driver shader warmup. Native Windows behavior still
 needs verification. Packaged logging writes to Logs/OpenRailsLog.txt beside
 the extracted application, rather than relying on a desktop location.
 
-The target remains 1080p / 60 FPS, without a measured guarantee. High adds
-volume and reflection work, so compare both frame time and image quality on
+Profiles do not impose a display mode or promise a frame rate. Higher levels
+add volume and reflection work, so compare frame time and image quality on
 the same route, train, camera, weather and time. The debug HUD reports the
 active renderer and fallback reason. Native GPU timings remain necessary.
 

@@ -25,6 +25,7 @@
 #define RENDER_BLEND_SORTING
 
 using System;
+using ORTS.Settings;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -527,8 +528,8 @@ namespace Orts.Viewer3D
         void DrawWaterReflection(GraphicsDevice device)
         {
             var process = Game.RenderProcess;
-            if (SceneryShader == null || !SceneryShader.AdvancedEnvironment || Game.Settings.EnvironmentQuality < 2
-                || !Game.Settings.EnvironmentWaterReflections || Camera == null)
+            var reflectionQuality = GraphicsQuality.Resolve(Game.Settings.EnvironmentReflectionQuality, Game.Settings.EnvironmentWaterReflections, Game.Settings.EnvironmentQuality);
+            if (SceneryShader == null || !SceneryShader.AdvancedEnvironment || reflectionQuality == 0 || Camera == null)
             {
                 if (process.WaterReflection != null) process.WaterReflection.Valid = false;
                 return;
@@ -551,7 +552,7 @@ namespace Orts.Viewer3D
             }
             if (process.WaterReflection == null) process.WaterReflection = new WaterReflection();
             var reflection = process.WaterReflection;
-            if (!reflection.Begin(device, height, Camera.TileX, Camera.TileZ, XNACameraLocation)) return;
+            if (!reflection.Begin(device, height, Camera.TileX, Camera.TileZ, XNACameraLocation, reflectionQuality)) return;
 
             var viewport = device.Viewport;
             var mirror = Matrix.CreateReflection(new Plane(Vector3.Up, -height));
@@ -690,8 +691,8 @@ namespace Orts.Viewer3D
         /// <param name="logging"></param>
         void DrawSimple(GraphicsDevice graphicsDevice, bool logging)
         {
-            drawVolumetricClouds = RenderSurfaceMaterial != null && SceneryShader != null && SceneDepth != null && Game.Settings.EnvironmentQuality >= 2
-                && Game.Settings.EnvironmentVolumetricClouds && Game.Settings.EnvironmentIntensity > 0 && !(Camera is CabCamera);
+            drawVolumetricClouds = RenderSurfaceMaterial != null && SceneryShader != null && SceneDepth != null && SceneryShader.AdvancedEnvironment
+                && GraphicsQuality.Resolve(Game.Settings.EnvironmentCloudQuality, Game.Settings.EnvironmentVolumetricClouds, Game.Settings.EnvironmentQuality) > 0 && Game.Settings.EnvironmentIntensity > 0 && !(Camera is CabCamera);
             var gradeScene = RenderSurfaceMaterial != null && SceneryShader != null && SceneryShader.AdvancedEnvironment
                 && Game.Settings.EnvironmentIntensity > 0;
             var sceneEnd = gradeScene ? (int)RenderPrimitiveSequence.Labels : (int)RenderPrimitiveSequence.Sentinel;
@@ -733,7 +734,7 @@ namespace Orts.Viewer3D
                         Game.Settings.EnvironmentIntensity, SolarDirection.Y, 0, false).Daylight;
                     process.EnvironmentPostProcess.Apply(RenderSurface, MathHelper.Clamp(Game.Settings.EnvironmentIntensity / 100f, 0, 1),
                         daylight, Game.Settings.EnvironmentQuality, Game.Settings.EnvironmentBloom && !(Camera is CabCamera),
-                        Game.Settings.AntiAliasing > 1, Game.Settings.EnvironmentColorGrading && !(Camera is CabCamera));
+                        Game.Settings.AntiAliasing > 1, Game.Settings.EnvironmentColorGrading && !(Camera is CabCamera), Game.Settings.EnvironmentBloomQuality);
                     // HUD, labels, 2D cab overlays and menus retain their original colors.
                     DrawSequences(graphicsDevice, logging, sceneEnd, (int)RenderPrimitiveSequence.Sentinel);
                 }
@@ -830,7 +831,9 @@ namespace Orts.Viewer3D
         void DrawCloudVolume(GraphicsDevice device, RenderTarget2D target, Texture2D depth, Matrix view, Matrix projection)
         {
             var viewer = Game.RenderProcess.Viewer;
-            if (viewer == null || !Game.Settings.EnvironmentVolumetricClouds || viewer.Simulator.Weather.CloudCoverFactor < 0.02f) return;
+            var cloudQuality = GraphicsQuality.Resolve(Game.Settings.EnvironmentCloudQuality, Game.Settings.EnvironmentVolumetricClouds, Game.Settings.EnvironmentQuality);
+            var budget = GraphicsQuality.Clouds(cloudQuality);
+            if (viewer == null || cloudQuality == 0 || viewer.Simulator.Weather.CloudCoverFactor < 0.02f) return;
             var location = viewer.Camera.CameraWorldLocation;
             var ground = viewer.Tiles.GetTile(location.TileX, location.TileZ) != null ? viewer.Tiles.GetElevation(location) : 0;
             var weather = viewer.Simulator.Weather;
@@ -841,7 +844,7 @@ namespace Orts.Viewer3D
                 new Vector3((location.TileX % 1024) * 2048f,0,-(location.TileZ % 1024) * 2048f),SolarDirection,
                 SharedMaterialManager.FogColor.ToVector3(),environment,weather.CloudCoverFactor,ground,(float)viewer.Simulator.ClockTime,
                 Game.Settings.EnvironmentCloudResolution, Game.RenderProcess.DrawingWaterReflection,
-                Game.RenderProcess.DrawingWaterReflection ? 24 : 48);
+                Game.RenderProcess.DrawingWaterReflection ? Math.Max(12, budget.Intervals / 2) : budget.Intervals, cloudQuality);
         }
 
         void DrawSequencesDistantMountains(GraphicsDevice graphicsDevice, bool logging)

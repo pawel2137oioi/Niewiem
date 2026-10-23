@@ -3,6 +3,7 @@ using System.IO;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using ORTS.Common;
+using ORTS.Settings;
 
 namespace Orts.Viewer3D
 {
@@ -28,16 +29,18 @@ namespace Orts.Viewer3D
             black.SetData(new[] { Color.Black });
         }
 
-        internal void Apply(RenderTarget2D scene, float strength, float daylight, int quality, bool bloom, bool antiAliasing = true, bool colorGrading = true)
+        internal void Apply(RenderTarget2D scene, float strength, float daylight, int quality, bool bloom, bool antiAliasing = true, bool colorGrading = true, int bloomQuality = -1)
         {
+            var level = GraphicsQuality.ResolveBloom(bloomQuality, bloom, quality);
+            bloom = level > 0;
             var viewport = device.Viewport;
             effect.Parameters["SampleStep"].SetValue(new Vector2(1f / scene.Width, 1f / scene.Height));
             if (bloom)
             {
-                // Quarter-resolution in Balanced, half-resolution in High.
-                var divisor = quality >= 2 ? 2 : 4;
-                var width = Math.Max(1, scene.Width / divisor);
-                var height = Math.Max(1, scene.Height / divisor);
+                var divisor = GraphicsQuality.BloomDivisor(level);
+                var scale = Math.Min(1f / divisor, Math.Min(1920f / scene.Width, 1080f / scene.Height));
+                var width = Math.Max(1, (int)(scene.Width * scale));
+                var height = Math.Max(1, (int)(scene.Height * scale));
                 if (bloomA == null || bloomA.Width != width || bloomA.Height != height)
                 {
                     bloomA?.Dispose(); bloomB?.Dispose();

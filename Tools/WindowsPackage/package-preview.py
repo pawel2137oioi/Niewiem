@@ -76,6 +76,7 @@ with zipfile.ZipFile(out / "OpenRails-ModernRenderer-preview.zip", "w",
                readme.replace("\n", "\r\n").encode("utf-8-sig"))
     z.writestr("OpenRails-ModernRenderer/OpenRails.ini", (repo / "Downloads/ModernRenderer.ini").read_text().replace("\n", "\r\n"))
     z.writestr("OpenRails-ModernRenderer/Logs/README.txt", "Log z jazdy: OpenRailsLog.txt w tym katalogu.\r\n")
+    z.write(repo / "Docs/Graphics-Quality.md", "OpenRails-ModernRenderer/USTAWIENIA-GRAFIKI.md")
     z.write(repo / "LICENSE", "OpenRails-ModernRenderer/LICENSE")
 
 

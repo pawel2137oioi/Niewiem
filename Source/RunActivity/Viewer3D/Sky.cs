@@ -17,6 +17,7 @@
 
 // This file is the responsibility of the 3D & Environment Team.
 using System;
+using ORTS.Settings;
 using System.Collections.Generic;
 using System.Diagnostics;
 using Microsoft.Xna.Framework;
@@ -437,8 +438,7 @@ namespace Orts.Viewer3D
             }
 
             // Clouds
-            if (Viewer.MaterialManager.SceneryShader.AdvancedEnvironment && Viewer.Settings.EnvironmentQuality >= 2
-                && Viewer.Settings.EnvironmentVolumetricClouds && Viewer.Settings.EnvironmentIntensity > 0 && !(Viewer.Camera is CabCamera))
+            if (Viewer.MaterialManager.SceneryShader.AdvancedEnvironment && GraphicsQuality.Resolve(Viewer.Settings.EnvironmentCloudQuality, Viewer.Settings.EnvironmentVolumetricClouds, Viewer.Settings.EnvironmentQuality) > 0 && Viewer.Settings.EnvironmentIntensity > 0 && !(Viewer.Camera is CabCamera))
             {
                 graphicsDevice.RasterizerState = Viewer.RenderProcess.DrawingWaterReflection ? RasterizerState.CullNone : RasterizerState.CullCounterClockwise;
                 return; // The depth-aware volume pass draws these after opaque scenery.

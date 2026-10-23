@@ -203,6 +203,12 @@ namespace ORTS.Settings
         public bool EnvironmentVolumetricClouds { get; set; }
         [Default(50)]
         public int EnvironmentCloudResolution { get; set; }
+        [Default(-1)]
+        public int EnvironmentCloudQuality { get; set; }
+        [Default(-1)]
+        public int EnvironmentReflectionQuality { get; set; }
+        [Default(-1)]
+        public int EnvironmentBloomQuality { get; set; }
 
         // Simulation settings:
         [Default(false)]

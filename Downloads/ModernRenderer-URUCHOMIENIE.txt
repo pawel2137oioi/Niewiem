@@ -1,25 +1,15 @@
 OPEN RAILS - MODERN RENDERER PREVIEW
 
-AKTUALIZACJA HORYZONTU, POGODY I PROFILU FPS
-Filtrowanie gestosci i adaptacyjne probkowanie ograniczaja pasy przy horyzoncie.
-Obraz nieba ma jawna glebokosc dla chmur. Wschod/zachod maja wspolne barwy
-slonca w niebie, chmurach i terenie. Deszcz ma waskie smugi, snieg miekkie platki,
-z oswietleniem dzien/noc i wygaszaniem przy kamerze.
-Options > Environment > Apply High / FPS preset zachowuje chmury 3D (33%),
-wylacza odbicia sceny w wodzie, zmniejsza cienie i zasieg do 1500 m.
-Zatwierdz OK i uruchom nowa jazde. 60 FPS jest celem, nie potwierdzonym wynikiem.
-High visual preset pozostaje opcja o wiekszym koszcie. Odbicia maja teraz
-ograniczony budzet rozdzielczosci; chmury w odbiciach osobny mniejszy bufor.
-W nowym rendererze usunieto tez zbedne MSAA koncowego obrazu; krawedzie sceny
-nadal wygladza FXAA. W trybie Original pozostaje poprzednie MSAA.
-
-USTAWIENIA CHMUR
-Usunieto ekranowe losowe probkowanie powodujace pelzajace ziarno przy ruchu.
-Chmury korzystaja ze spojnego szumu 3D, adaptacyjnych probek i domyslnie 50% rozdzielczosci.
-Options > Environment > Cloud resolution (%): 50 to ustawienie domyslne;
-25 obniza koszt, 75/100 zwieksza ostrosc. Obraz chmur ma limit 1280x720 pikseli.
-High visual preset ustawia 50. Efekt wymaga uruchomienia nowej jazdy po zmianie.
-Rozjasniono dzienne chmury i ograniczono bloom na zwyklym niebie/roslinnosci.
+NIEZALEZNE USTAWIENIA DLA ROZNYCH KOMPUTEROW
+Options > Environment: renderer Modern oraz osobne poziomy Off/Low/Medium/High/Ultra
+chmur objetosciowych, odbic, bloom i cieni. Mozesz mieszac poziomy, np. High dla
+chmur i Off dla odbic. Skale chmur ustawisz tez osobno (25-100%).
+Starting preset > Apply preset daje punkt wyjscia Low/Medium/High/Ultra.
+Profile nie narzucaja rozdzielczosci, VSync ani celu FPS. Zmienisz je w Graphics.
+Nowa paczka startuje na Medium, w oknie 1280x720; dobierz rozdzielczosc do monitora.
+Zatwierdz OK i uruchom nowa jazde. Cancel odrzuca zmiany. Nie ma gwarancji FPS.
+Pelny opis i tabela kosztow: USTAWIENIA-GRAFIKI.md obok EXE
+oraz Docs/Graphics-Quality.md w repozytorium.
 
 To prototyp przebudowy renderera. NIE jest gotowym nowym silnikiem gry
 ani potwierdzonym odwzorowaniem screenow TSRE 1:1.
@@ -31,7 +21,7 @@ Runtime: https://dotnet.microsoft.com/en-us/download/dotnet/6.0
 2. W glownym oknie: Content > Manually Installed > Add > Browse.
    Wskaz katalog zawartosci z Routes i Trains. Trasa, tabor oraz Global/Sound
    musza byc zainstalowane zgodnie z instrukcjami PKOR. Nie ma ich w tym ZIP.
-3. Paczka ma wlasny OpenRails.ini z High, sila 100 i nowymi efektami wlaczonymi.
+3. Paczka ma wlasny OpenRails.ini z Medium, sila 100 i nowymi efektami wlaczonymi.
    Ustawienia sa w Options > Environment. Zatwierdz OK i uruchom nowa jazde.
 4. Widok zewnetrzny: klawisz 2 albo 8. Przy bezchmurnej pogodzie chmur nie ma.
    Ctrl i =/+ zwieksza zachmurzenie; Ctrl i - zmniejsza je.
@@ -42,11 +32,11 @@ Runtime: https://dotnet.microsoft.com/en-us/download/dotnet/6.0
 NOWE
 HDR, tone mapping i grading, bloom, FXAA, objetosciowe chmury 3D
 z testem glebokosci, cienie chmur oraz odbicia otoczenia w wodzie.
-High jest kosztowniejszy. Balanced pomija chmury objetosciowe i odbicia sceny.
+Wyzsze poziomy sa kosztowniejsze. Off wylacza wybrany efekt.
 Mozna tez osobno wylaczyc efekty w Environment.
 
 OGRANICZENIA
-Cel 1080p / 60 FPS nie jest wynikiem pomiaru ani gwarancja.
+Dobierz ustawienia do swojego komputera; profile nie gwarantuja okreslonego FPS.
 To nadal modele i tekstury z zainstalowanej trasy. Nie dodano nowych drzew,
 teksturowania PBR, SSAO ani TAA. Odbicia uzywaja jednej plaszczyzny wody
 i geometrii przygotowanej dla glownej kamery; moga miec braki poza jej polem.

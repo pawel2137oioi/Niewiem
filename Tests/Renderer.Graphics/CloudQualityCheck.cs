@@ -4,6 +4,7 @@ using System.Linq;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Orts.Viewer3D;
+using ORTS.Settings;
 
 internal static class CloudQualityCheck
 {
@@ -20,12 +21,12 @@ internal static class CloudQualityCheck
         var view = Matrix.CreateLookAt(new Vector3(0, 100, 0), new Vector3(0, 1100, -1500), Vector3.Up);
         var projection = Matrix.CreatePerspectiveFieldOfView(MathHelper.Pi / 3, 2, 0.1f, 40000);
         var environment = new EnvironmentParameters(2, 100, 0.8f, 0.65f, false);
-        Color[] Render(Matrix p, int resolution = 50, float coverage = 0.65f, Matrix? camera = null, int budget = 48, bool reflection = false)
+        Color[] Render(Matrix p, int resolution = 50, float coverage = 0.65f, Matrix? camera = null, int budget = 48, bool reflection = false, int quality = 3)
         {
             device.SetRenderTarget(target);
             device.Clear(new Color(110, 155, 200));
             volume.Draw(target, depth, camera ?? view, p, Vector3.Zero, Vector3.Normalize(new Vector3(-1, 2, -1)),
-                new Vector3(0.55f, 0.65f, 0.75f), environment, coverage, 0, 0, resolution, reflection, budget);
+                new Vector3(0.55f, 0.65f, 0.75f), environment, coverage, 0, 0, resolution, reflection, budget, quality);
             device.SetRenderTarget(null);
             var pixels = new Color[width * height]; target.GetData(pixels); return pixels;
         }
@@ -82,5 +83,26 @@ internal static class CloudQualityCheck
         Render(projection,reflection:true,budget:24);
         Render(projection); // Separate reflection/main targets must survive alternating views.
         Console.WriteLine("PASS: horizon integration against dense reference and separate reflection resources.");
+        for (var quality=1; quality<=4; quality++)
+        {
+            var budget=GraphicsQuality.Clouds(quality);
+            var pixels=Render(projection,budget.ResolutionPercent,budget:budget.Intervals,quality:quality);
+            if(!pixels.Any(c=>c.R>150)) throw new Exception("Cloud level produced an empty volume: "+quality);
+        }
+        var disabled=Render(projection,quality:0);
+        if(disabled.Any(c=>c.R!=110 || c.G!=155 || c.B!=200)) throw new Exception("Cloud quality Off drew a volume.");
+        using var reflections=new WaterReflection();
+        for(var level=1;level<=4;level++)
+        {
+            if(!reflections.Begin(device,0,0,0,new Vector3(0,2,0),level)) throw new Exception("Reflection quality switch did not invalidate its target.");
+            reflections.Valid=true;
+            for(var i=1;i<=GraphicsQuality.Reflections(level).UpdateFrames;i++)
+                if(reflections.Begin(device,0,0,0,new Vector3(0,2,0),level)!=(i==GraphicsQuality.Reflections(level).UpdateFrames))
+                    throw new Exception("Incorrect reflection update cadence: "+level);
+        }
+        if(reflections.Begin(device,0,0,0,new Vector3(0,2,0),0) || reflections.Valid) throw new Exception("Disabled reflections remained valid.");
+        using var post=new EnvironmentPostProcess(device);
+        for(var level=0;level<=4;level++) post.Apply(target,1,1,2,true,false,true,level);
+        Console.WriteLine("PASS: all cloud, reflection and bloom levels, including Off and reflection refresh cadence.");
     }
 }

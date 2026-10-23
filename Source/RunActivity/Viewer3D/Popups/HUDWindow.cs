@@ -1518,11 +1518,16 @@ namespace Orts.Viewer3D.Popups
             TableSetLabelValueColumns(table, 0, 2);
             TextPageHeading(table, Viewer.Catalog.GetString("DEBUG INFORMATION"));
 
+            var cloudQuality = ORTS.Settings.GraphicsQuality.Resolve(Viewer.Settings.EnvironmentCloudQuality, Viewer.Settings.EnvironmentVolumetricClouds, Viewer.Settings.EnvironmentQuality);
+            var reflectionQuality = ORTS.Settings.GraphicsQuality.Resolve(Viewer.Settings.EnvironmentReflectionQuality, Viewer.Settings.EnvironmentWaterReflections, Viewer.Settings.EnvironmentQuality);
+            var bloomQuality = ORTS.Settings.GraphicsQuality.ResolveBloom(Viewer.Settings.EnvironmentBloomQuality, Viewer.Settings.EnvironmentBloom, Viewer.Settings.EnvironmentQuality);
+            TableAddLabelValue(table, Viewer.Catalog.GetString("Effect quality"),
+                $"Clouds {ORTS.Settings.GraphicsQuality.Name(cloudQuality)} ({Viewer.Settings.EnvironmentCloudResolution}%), reflections {ORTS.Settings.GraphicsQuality.Name(reflectionQuality)}, bloom {ORTS.Settings.GraphicsQuality.Name(bloomQuality)}");
             TableAddLabelValue(table, Viewer.Catalog.GetString("Logging enabled"), Viewer.Settings.DataLogger ? Viewer.Catalog.GetString("Yes") : Viewer.Catalog.GetString("No"));
             TableAddLabelValue(table, Viewer.Catalog.GetString("Build"), VersionInfo.Build);
             TableAddLabelValue(table, Viewer.Catalog.GetString("Environment renderer"),
                 Viewer.MaterialManager.SceneryShader.AdvancedEnvironment
-                ? $"Advanced {(Viewer.Settings.EnvironmentQuality >= 2 ? "High" : "Balanced")}, {Viewer.Settings.EnvironmentIntensity}%"
+                ? $"Modern, {Viewer.Settings.EnvironmentIntensity}%"
                 : Viewer.Settings.UseMSTSEnv ? "Original (MSTS environments)" : $"Original (quality {Viewer.Settings.EnvironmentQuality}, DirectX {Viewer.Settings.DirectXFeatureLevel})");
             TableAddLabelValue(table, Viewer.Catalog.GetString("CPU"), Viewer.Catalog.GetStringFmt("{0:F0}% ({1})", (Viewer.RenderProcess.Profiler.CPU.SmoothedValue + Viewer.UpdaterProcess.Profiler.CPU.SmoothedValue + Viewer.LoaderProcess.Profiler.CPU.SmoothedValue + Viewer.SoundProcess.Profiler.CPU.SmoothedValue) / Host.ProcessorCount, Viewer.Catalog.GetPluralStringFmt("{0} logical processor", "{0} logical processors", Host.ProcessorCount)));
             TableAddLabelValue(table, Viewer.Catalog.GetString("GPU"), Viewer.Catalog.GetStringFmt("{0:F0} FPS (50th/95th/99th percentiles {1:F1} / {2:F1} / {3:F1} ms, DirectX feature level >= {4})", Viewer.RenderProcess.FrameRate.SmoothedValue, Viewer.RenderProcess.FrameTime.SmoothedP50 * 1000, Viewer.RenderProcess.FrameTime.SmoothedP95 * 1000, Viewer.RenderProcess.FrameTime.SmoothedP99 * 1000, Viewer.Settings.DirectXFeatureLevel));

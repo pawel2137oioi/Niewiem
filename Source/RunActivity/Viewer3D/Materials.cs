@@ -18,6 +18,7 @@
 // This file is the responsibility of the 3D & Environment Team. 
 
 using System;
+using ORTS.Settings;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -310,6 +311,7 @@ namespace Orts.Viewer3D
             SkyShader = new SkyShader(viewer.RenderProcess.GraphicsDevice);
             SkyShader.ConfigureEnvironment(SceneryShader.AdvancedEnvironment);
             Trace.WriteLine($"Environment renderer: {(SceneryShader.AdvancedEnvironment ? "Advanced" : "Original")}; quality={viewer.Settings.EnvironmentQuality}; intensity={viewer.Settings.EnvironmentIntensity}; MSTS={viewer.Settings.UseMSTSEnv}; DirectX={viewer.Settings.DirectXFeatureLevel}; grading={viewer.Settings.EnvironmentColorGrading}; bloom={viewer.Settings.EnvironmentBloom}; water reflections={viewer.Settings.EnvironmentWaterReflections}");
+            Trace.WriteLine($"Effect quality: clouds={GraphicsQuality.Name(GraphicsQuality.Resolve(viewer.Settings.EnvironmentCloudQuality,viewer.Settings.EnvironmentVolumetricClouds,viewer.Settings.EnvironmentQuality))}; cloud scale={viewer.Settings.EnvironmentCloudResolution}%; reflections={GraphicsQuality.Name(GraphicsQuality.Resolve(viewer.Settings.EnvironmentReflectionQuality,viewer.Settings.EnvironmentWaterReflections,viewer.Settings.EnvironmentQuality))}; bloom={GraphicsQuality.Name(GraphicsQuality.ResolveBloom(viewer.Settings.EnvironmentBloomQuality,viewer.Settings.EnvironmentBloom,viewer.Settings.EnvironmentQuality))}");
             DebugShader = new DebugShader(viewer.RenderProcess.GraphicsDevice);
             CabShader = new CabShader(viewer.RenderProcess.GraphicsDevice, Vector4.One, Vector4.One, Vector3.One, Vector3.One);
 
@@ -514,7 +516,7 @@ namespace Orts.Viewer3D
             var terrainAvailable = Viewer.Tiles.GetTile(cameraLocation.TileX, cameraLocation.TileZ) != null;
             var groundAvailable = SceneryShader.AdvancedEnvironment && Viewer.Settings.EnvironmentGroundFog > 0 && terrainAvailable;
             var groundLevel = terrainAvailable ? Viewer.Tiles.GetElevation(cameraLocation) : 0;
-            if (SceneryShader.AdvancedEnvironment && Viewer.Settings.EnvironmentQuality >= 2 && Viewer.Settings.EnvironmentVolumetricClouds && Viewer.Settings.EnvironmentIntensity > 0
+            if (SceneryShader.AdvancedEnvironment && GraphicsQuality.Clouds(GraphicsQuality.Resolve(Viewer.Settings.EnvironmentCloudQuality, Viewer.Settings.EnvironmentVolumetricClouds, Viewer.Settings.EnvironmentQuality)).Shadows && Viewer.Settings.EnvironmentIntensity > 0
                 && Viewer.Simulator.Weather.CloudCoverFactor >= 0.02f && !(Viewer.Camera is CabCamera))
             {
                 if (Viewer.RenderProcess.VolumetricClouds == null) Viewer.RenderProcess.VolumetricClouds = new VolumetricClouds(Viewer.GraphicsDevice);

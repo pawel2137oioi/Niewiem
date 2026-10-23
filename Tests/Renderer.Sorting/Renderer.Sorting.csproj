@@ -12,5 +12,6 @@
     </Reference>
     <Compile Include="../../Source/RunActivity/Viewer3D/RenderItem.cs" Link="RenderItem.cs" />
     <Compile Include="../../Source/RunActivity/Viewer3D/EnvironmentParameters.cs" Link="EnvironmentParameters.cs" />
+    <Compile Include="../../Source/Orts.Settings/GraphicsQuality.cs" Link="GraphicsQuality.cs" />
   </ItemGroup>
 </Project>

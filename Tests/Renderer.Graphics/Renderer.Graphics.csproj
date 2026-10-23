@@ -7,6 +7,8 @@
   <ItemGroup>
     <PackageReference Include="MonoGame.Framework.WindowsDX" Version="3.8.1.303" />
     <Compile Include="../../Source/Orts.Common/ApplicationInfo.cs" Link="ApplicationInfo.cs" />
+    <Compile Include="../../Source/Orts.Settings/GraphicsQuality.cs" Link="GraphicsQuality.cs" />
+    <Compile Include="../../Source/RunActivity/Viewer3D/WaterReflection.cs" Link="WaterReflection.cs" />
     <Compile Include="../../Source/RunActivity/Viewer3D/EnvironmentPostProcess.cs" Link="EnvironmentPostProcess.cs" />
     <Compile Include="../../Source/RunActivity/Viewer3D/EnvironmentParameters.cs" Link="EnvironmentParameters.cs" />
     <Compile Include="../../Source/RunActivity/Viewer3D/VolumetricClouds.cs" Link="VolumetricClouds.cs" />

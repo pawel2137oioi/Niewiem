@@ -3,6 +3,7 @@ using System.IO;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using ORTS.Common;
+using ORTS.Settings;
 
 namespace Orts.Viewer3D
 {
@@ -54,15 +55,16 @@ namespace Orts.Viewer3D
         }
         internal void Draw(RenderTarget2D scene, Texture2D depth, Matrix view, Matrix projection,
             Vector3 offset, Vector3 sun, Vector3 fog, EnvironmentParameters environment, float coverage, float ground, float time,
-            int resolutionPercent = 50, bool reflection = false, int sampleBudget = 48)
+            int resolutionPercent = 50, bool reflection = false, int sampleBudget = 48, int quality = 3)
         {
-            if (coverage < 0.02f || environment.Strength <= 0) return;
+            var budget = GraphicsQuality.Clouds(quality);
+            if (budget.Intervals == 0 || coverage < 0.02f || environment.Strength <= 0) return;
             // Bound total pixels as well as width for portrait/ultrawide screens.
             var screenWidth = device.PresentationParameters.BackBufferWidth;
             var screenHeight = device.PresentationParameters.BackBufferHeight;
             var scale = Math.Clamp(resolutionPercent, 25, 100) / 100f;
-            scale = Math.Min(scale, 1280f / screenWidth);
-            scale = Math.Min(scale, (float)Math.Sqrt(1280f * 720 / ((double)screenWidth * screenHeight)));
+            scale = Math.Min(scale, budget.MaxWidth / (float)screenWidth);
+            scale = Math.Min(scale, (float)Math.Sqrt(budget.MaxWidth * (budget.MaxWidth * 9f / 16) / ((double)screenWidth * screenHeight)));
             if (reflection) scale *= 0.5f;
             var width = Math.Max(1, (int)(screenWidth * scale));
             var height = Math.Max(1,width * device.PresentationParameters.BackBufferHeight / device.PresentationParameters.BackBufferWidth);
@@ -82,7 +84,7 @@ namespace Orts.Viewer3D
             effect.Parameters["CloudLayer"].SetValue(new Vector4(ground + 750, 1000, MathHelper.Clamp(coverage,0,1),time));
             effect.Parameters["CloudLight"].SetValue(new Vector4(environment.Daylight,environment.ClearSky,environment.Strength,environment.SunVisibility));
             effect.Parameters["CloudTwilight"].SetValue(environment.Twilight * environment.SunVisibility);
-            effect.Parameters["CloudSampling"].SetValue(new Vector2(Math.Clamp(sampleBudget, 12, 128), sampleBudget >= 128 ? 1 : 160));
+            effect.Parameters["CloudSampling"].SetValue(new Vector2(Math.Clamp(sampleBudget, 12, 128), sampleBudget >= 128 ? 1 : budget.StepLength));
             effect.Parameters["LowPixelSize"].SetValue(new Vector2(1f/width,1f/height));
             effect.Parameters["DepthTexture"].SetValue(depth);
             effect.Parameters["CloudTexture"].SetValue((Texture2D)null);

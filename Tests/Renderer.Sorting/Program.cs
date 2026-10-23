@@ -138,6 +138,7 @@ Check(new EnvironmentParameters(2, 70, -0.1f, 0, false).Twilight > 0, "Twilight 
 Check(new EnvironmentParameters(2, 70, 1, 0, false).Twilight == 0, "Twilight present at high noon.");
 Check(new EnvironmentParameters(2, 70, -1, 0, false).Twilight == 0, "Twilight present at midnight.");
 Console.WriteLine($"PASS: {weatherChecks + 5} precipitation, visibility and ground-layer checks.");
+QualityChecks.Run();
 
 if (args.Contains("--benchmark"))
 {

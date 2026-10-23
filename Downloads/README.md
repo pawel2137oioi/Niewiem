@@ -10,28 +10,21 @@ ani potwierdzony wyglad 1:1 ze screenami TSRE.** Modele i tekstury trasy
 pozostaja jej oryginalnymi zasobami. Wymaga Windows x64, DirectX 10+
 i .NET Desktop Runtime 6.0.36 x64.
 
-Aktualizacja chmur usuwa ekranowe ziarno podczas ruchu kamery, stosuje spojny
-szum 3D i domyslnie 50% rozdzielczosci. W Options > Environment jest regulacja
-Cloud resolution (%) 25–100; 25 obniza koszt, 50 jest ustawieniem domyslnym.
-Rozjasniono dzienne chmury, a bloom obejmuje mocniejsze swiatla.
-
-Nowsza aktualizacja dodaje filtrowanie przy horyzoncie, adaptacyjne probkowanie,
-spojne oswietlenie wschodu/zachodu oraz nowe smugi deszczu i platki sniegu.
-Przycisk **Apply High / FPS preset** zachowuje chmury 3D, a obniza ich
-rozdzielczosc, cienie i zasieg oraz wylacza odbicia sceny w wodzie. Odbicia
-w profilu wizualnym maja tez mniejszy budzet renderowania. Zmiany przeszly
-testy shaderow przez Wine; nie sa pomiarem FPS ani potwierdzeniem usuniecia
-wszystkich pasow na trasie lub uzyskania wygladu SimRaila.
+W Options > Environment sa teraz **niezalezne poziomy Off / Low / Medium / High /
+Ultra** dla chmur objetosciowych, odbic, bloom i cieni. Profile Low/Medium/High/Ultra
+sa punktami wyjscia; po zastosowaniu mozna mieszac poziomy. Rozdzielczosc ekranu,
+VSync i cel FPS pozostaja pod kontrola uzytkownika. [Poradnik i tabela kosztow](../Docs/Graphics-Quality.md).
 
 Rozpakuj do nowego folderu i uruchom OpenRails.exe. Dodaj zawartosc przez
-Content > Manually Installed > Add > Browse. Paczka startuje z High i sila 100.
-Obejrzyj widok 2/8; chmury wymagaja zachmurzenia (Ctrl i =/+ zwieksza je).
+Content > Manually Installed > Add > Browse. Paczka startuje z Medium w oknie
+1280x720. Wybierz rozdzielczosc w Graphics; w Environment mozesz wybrac profil
+lub indywidualne efekty. Zatwierdz OK i rozpocznij nowa jazde.
 Log jest w `Logs/OpenRailsLog.txt` obok EXE. Dokladne kroki sa w
 [instrukcji](ModernRenderer-URUCHOMIENIE.txt).
 
 Sprawdzono skompilowane shadery testami pikseli oraz uruchomienie Północnej
 Polski z EU07-465 przez Wine. Nie zmierzono 60 FPS na natywnym Windows/GPU.
-High dodaje koszt renderowania; Balanced pomija najdrozsze efekty.
+Wyzsze poziomy dodaja koszt renderowania; efekty mozna niezaleznie wylaczac.
 W testowej trasie pozostaja czarne powierzchnie i problemy wygladu wody;
 wystapilo tez jednorazowe zakonczenie przez watchdog renderera pod Wine.
 Zakres, testy i pozostale ograniczenia opisuje [raport](../Docs/Modern-Renderer.md).

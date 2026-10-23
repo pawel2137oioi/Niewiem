@@ -1,6 +1,7 @@
 using System;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using ORTS.Settings;
 
 namespace Orts.Viewer3D
 {
@@ -15,11 +16,15 @@ namespace Orts.Viewer3D
         int frames;
         int tileX, tileZ;
         Vector3 eye;
-        internal bool Begin(GraphicsDevice device, float height, int cameraTileX, int cameraTileZ, Vector3 cameraEye)
+        int previousQuality = -1;
+        internal bool Begin(GraphicsDevice device, float height, int cameraTileX, int cameraTileZ, Vector3 cameraEye, int quality = 3)
         {
+            var budget = GraphicsQuality.Reflections(quality);
+            if (budget.MaxWidth == 0) { Valid = false; return false; }
+            if (previousQuality != quality) { Valid = false; frames = 0; previousQuality = quality; }
             if (tileX != cameraTileX || tileZ != cameraTileZ || Vector3.DistanceSquared(eye,cameraEye)>100) Valid=false;
-            var scale = Math.Min(0.5f, 640f / device.PresentationParameters.BackBufferWidth);
-            scale = Math.Min(scale, (float)Math.Sqrt(640f * 360 / ((double)device.PresentationParameters.BackBufferWidth * device.PresentationParameters.BackBufferHeight)));
+            var scale = Math.Min(0.5f, budget.MaxWidth / (float)device.PresentationParameters.BackBufferWidth);
+            scale = Math.Min(scale, (float)Math.Sqrt(budget.MaxWidth * (budget.MaxWidth * 9f / 16) / ((double)device.PresentationParameters.BackBufferWidth * device.PresentationParameters.BackBufferHeight)));
             var width = Math.Max(1, (int)(device.PresentationParameters.BackBufferWidth * scale));
             var pixelsHigh = Math.Max(1, (int)(device.PresentationParameters.BackBufferHeight * scale));
             if (Target == null || Target.Width != width || Target.Height != pixelsHigh)
@@ -31,8 +36,8 @@ namespace Orts.Viewer3D
                 Bindings = new[] { new RenderTargetBinding(Target),new RenderTargetBinding(Depth) };
                 Valid = false;
             }
-            // Refresh every other frame; reuse the exact projection of the cached image.
-            var refresh = !Valid || Math.Abs(Height - height) > 0.25f || ++frames % 2 == 0;
+            // Reuse the exact projection of the cached image between quality-dependent refreshes.
+            var refresh = !Valid || Math.Abs(Height - height) > 0.25f || ++frames % budget.UpdateFrames == 0;
             if (refresh) { Height = height; tileX=cameraTileX; tileZ=cameraTileZ; eye=cameraEye; }
             return refresh;
         }

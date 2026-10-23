@@ -1,180 +1,188 @@
 using System;
 using System.Drawing;
 using System.Windows.Forms;
+using ORTS.Settings;
 
 namespace Menu
 {
     public partial class OptionsForm
     {
-        ComboBox environmentQuality;
-        NumericUpDown environmentIntensity;
-        CheckBox environmentSunGlare;
-        NumericUpDown environmentGroundFog;
-        NumericUpDown environmentFogHeight;
-        NumericUpDown environmentCloudResolution;
-        CheckBox environmentColorGrading, environmentBloom, environmentWaterReflections, environmentVolumetricClouds;
-        bool applyBalancedShadowSettings;
-        bool applyFpsShadowSettings;
+        ComboBox environmentQuality, environmentCloudQuality, environmentReflectionQuality, environmentBloomQuality, environmentShadowQuality;
+        NumericUpDown environmentIntensity, environmentGroundFog, environmentFogHeight, environmentCloudResolution;
+        CheckBox environmentSunGlare, environmentColorGrading;
+        Label environmentNotice;
+        int? environmentPreset;
+        bool loadingEnvironment = true;
+        bool updatingEnvironmentShadows, environmentShadowsChanged;
 
         void InitializeEnvironmentOptions()
         {
             var page = new TabPage(catalog.GetString("Environment")) { AutoScroll = true };
-            var layout = new TableLayoutPanel
+            var layout = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 2, Padding = new Padding(12) };
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55));
+            var tips = new ToolTip { AutoPopDelay = 15000 };
+            page.Disposed += (sender, args) => tips.Dispose();
+            var row = 0;
+            void Add(string title, Control control, string help = null)
             {
-                Dock = DockStyle.Top, AutoSize = true, ColumnCount = 2,
-                Padding = new Padding(12),
-            };
-            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40));
-            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 60));
-            environmentQuality = new ComboBox
+                var label = new Label { AutoSize = true, Text = catalog.GetString(title), Margin = new Padding(0, 6, 8, 6) };
+                layout.Controls.Add(label, 0, row); layout.Controls.Add(control, 1, row++);
+                if (help != null) { tips.SetToolTip(label, catalog.GetString(help)); tips.SetToolTip(control, catalog.GetString(help)); }
+            }
+            ComboBox Levels(int selected)
             {
-                DropDownStyle = ComboBoxStyle.DropDownList, Dock = DockStyle.Fill,
-            };
-            environmentQuality.Items.AddRange(new object[]
-            {
-                catalog.GetString("Original"),
-                catalog.GetString("Balanced"),
-                catalog.GetString("High"),
-            });
-            environmentQuality.SelectedIndex = Math.Clamp(Settings.EnvironmentQuality, 0, 2);
-            environmentIntensity = new NumericUpDown
-            {
-                Minimum = 0, Maximum = 100, Increment = 5, Width = 90,
-                Value = Math.Clamp(Settings.EnvironmentIntensity, 0, 100),
-            };
-            environmentSunGlare = new CheckBox
-            {
-                AutoSize = true, Text = catalog.GetString("Sun halo"),
-                Checked = Settings.EnvironmentSunGlare,
-            };
-            layout.Controls.Add(new Label { AutoSize = true, Text = catalog.GetString("Environment quality") }, 0, 0);
-            layout.Controls.Add(environmentQuality, 1, 0);
-            layout.Controls.Add(new Label { AutoSize = true, Text = catalog.GetString("Effect strength (%)") }, 0, 1);
-            layout.Controls.Add(environmentIntensity, 1, 1);
-            layout.Controls.Add(environmentSunGlare, 1, 2);
-            environmentGroundFog = new NumericUpDown
-            {
-                Minimum = 0, Maximum = 100, Increment = 5, Width = 90,
-                Value = Math.Clamp(Settings.EnvironmentGroundFog, 0, 100),
-            };
-            environmentFogHeight = new NumericUpDown
-            {
-                Minimum = 5, Maximum = 500, Increment = 5, Width = 90,
-                Value = Math.Clamp(Settings.EnvironmentFogHeight, 5, 500),
-            };
-            layout.Controls.Add(new Label { AutoSize = true, Text = catalog.GetString("Ground fog (%)") }, 0, 3);
-            layout.Controls.Add(environmentGroundFog, 1, 3);
-            layout.Controls.Add(new Label { AutoSize = true, Text = catalog.GetString("Fog layer height (m)") }, 0, 4);
-            layout.Controls.Add(environmentFogHeight, 1, 4);
+                var combo = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Dock = DockStyle.Fill };
+                combo.Items.AddRange(new object[] { catalog.GetString("Off"), catalog.GetString("Low"), catalog.GetString("Medium"), catalog.GetString("High"), catalog.GetString("Ultra") });
+                combo.SelectedIndex = Math.Clamp(selected, 0, 4);
+                return combo;
+            }
+            NumericUpDown Number(int value, int min, int max, int increment) => new NumericUpDown
+            { Minimum = min, Maximum = max, Increment = increment, Width = 90, Value = Math.Clamp(value, min, max) };
+
+            var presets = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 125 };
+            presets.Items.AddRange(new object[] { catalog.GetString("Low"), catalog.GetString("Medium"), catalog.GetString("High"), catalog.GetString("Ultra") });
+            presets.SelectedIndex = 1;
+            var apply = new Button { Text = catalog.GetString("Apply preset"), AutoSize = true };
+            var presetPanel = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill };
+            presetPanel.Controls.Add(presets); presetPanel.Controls.Add(apply);
+            Add("Starting preset", presetPanel, "Presets are starting points. Change individual effects afterwards. Screen resolution, FPS target and VSync stay under your control.");
+
+            environmentQuality = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Dock = DockStyle.Fill };
+            environmentQuality.Items.AddRange(new object[] { catalog.GetString("Original"), catalog.GetString("Modern") });
+            environmentQuality.SelectedIndex = Settings.EnvironmentQuality > 0 ? 1 : 0;
+            Add("Renderer", environmentQuality, "Modern effects require DirectX 10 or newer. Original uses the legacy renderer.");
+            environmentIntensity = Number(Settings.EnvironmentIntensity, 0, 100, 5);
+            Add("Effect strength (%)", environmentIntensity);
+            environmentCloudQuality = Levels(GraphicsQuality.Resolve(Settings.EnvironmentCloudQuality, Settings.EnvironmentVolumetricClouds, Settings.EnvironmentQuality));
+            Add("Volumetric clouds", environmentCloudQuality, "Off uses the cheaper 2D cloud layer. Higher levels improve volume sampling and enable cloud shadows from Medium upwards. Clouds follow the current weather.");
+            environmentCloudResolution = Number(Settings.EnvironmentCloudResolution, 25, 100, 5);
+            Add("Cloud resolution (%)", environmentCloudResolution, "Quality selects a suggested resolution; you may override it. Higher values increase GPU cost. High is capped at 1280x720; Ultra at 1536x864.");
+            environmentReflectionQuality = Levels(GraphicsQuality.Resolve(Settings.EnvironmentReflectionQuality, Settings.EnvironmentWaterReflections, Settings.EnvironmentQuality));
+            Add("Water reflections", environmentReflectionQuality, "Off uses a sky approximation. Low to Ultra increase reflection resolution and refresh frequency. Scene reflections can be expensive on busy routes.");
+            environmentBloomQuality = Levels(GraphicsQuality.ResolveBloom(Settings.EnvironmentBloomQuality, Settings.EnvironmentBloom, Settings.EnvironmentQuality));
+            Add("Bloom", environmentBloomQuality, "Off removes highlight glow. Higher quality increases the resolution of the glow buffers, at a higher GPU and memory cost.");
+            var shadowLevel = !Settings.DynamicShadows ? 0 : Settings.ShadowMapCount == 1 && Settings.ShadowMapResolution == 1024 ? 1
+                : Settings.ShadowMapCount == 2 && Settings.ShadowMapResolution == 1024 ? 2
+                : Settings.ShadowMapCount == 2 && Settings.ShadowMapResolution == 2048 ? 3
+                : Settings.ShadowMapCount == 4 && Settings.ShadowMapResolution == 2048 ? 4 : 5;
+            environmentShadowQuality = Levels(Math.Min(shadowLevel,4));
+            environmentShadowQuality.Items.Add(catalog.GetString("Custom"));
+            environmentShadowQuality.SelectedIndex = shadowLevel;
+            Add("Shadows", environmentShadowQuality, "Low: one 1024-pixel cascade. Medium: two 1024-pixel cascades. High: two 2048-pixel cascades. Ultra: four 2048-pixel cascades. Custom preserves your existing shadow settings.");
             environmentColorGrading = new CheckBox { AutoSize = true, Text = catalog.GetString("Filmic scene colors"), Checked = Settings.EnvironmentColorGrading };
-            environmentBloom = new CheckBox { AutoSize = true, Text = catalog.GetString("Soft highlight bloom"), Checked = Settings.EnvironmentBloom };
-            environmentWaterReflections = new CheckBox { AutoSize = true, Text = catalog.GetString("Scene reflections in water (High)"), Checked = Settings.EnvironmentWaterReflections };
-            layout.Controls.Add(environmentColorGrading, 1, 5);
-            layout.Controls.Add(environmentBloom, 1, 6);
-            layout.Controls.Add(environmentWaterReflections, 1, 7);
-            environmentVolumetricClouds = new CheckBox { AutoSize = true, Text = catalog.GetString("Volumetric clouds (High)"), Checked = Settings.EnvironmentVolumetricClouds };
-            layout.Controls.Add(environmentVolumetricClouds, 1, 8);
-            environmentCloudResolution = new NumericUpDown
-            {
-                Minimum = 25, Maximum = 100, Increment = 25, Width = 90,
-                Value = Math.Clamp(Settings.EnvironmentCloudResolution, 25, 100),
-            };
-            layout.Controls.Add(new Label { AutoSize = true, Text = catalog.GetString("Cloud resolution (%)") }, 0, 9);
-            layout.Controls.Add(environmentCloudResolution, 1, 9);
+            Add("Color grading", environmentColorGrading);
+            environmentSunGlare = new CheckBox { AutoSize = true, Text = catalog.GetString("Sun halo"), Checked = Settings.EnvironmentSunGlare };
+            Add("Sunlight", environmentSunGlare);
+            environmentGroundFog = Number(Settings.EnvironmentGroundFog, 0, 100, 5);
+            Add("Ground fog (%)", environmentGroundFog, "Set to zero to disable the additional ground fog. Route/weather visibility still applies.");
+            environmentFogHeight = Number(Settings.EnvironmentFogHeight, 5, 500, 5);
+            Add("Fog layer height (m)", environmentFogHeight);
+            environmentNotice = new Label { AutoSize = true, MaximumSize = new Size(650, 0), Margin = new Padding(0, 14, 0, 0) };
+            layout.Controls.Add(environmentNotice, 0, row++); layout.SetColumnSpan(environmentNotice, 2);
             var description = new Label
             {
-                AutoSize = true, MaximumSize = new Size(540, 0), Margin = new Padding(0, 16, 0, 0),
-                Text = catalog.GetString("The new renderer uses HDR scene targets, filmic colors, bloom, FXAA, shaded vegetation and reflective water. High adds depth-aware volumetric clouds with self-shadowing, moving cloud shadows and half-resolution scene reflections in water. Clouds follow the current weather. HUD colors are preserved; filmic processing is disabled in the 2D cab view. Requires DirectX feature level 10.0 or newer. MSTS environments use the original renderer. Route geometry and textures still affect the result."),
+                AutoSize = true, MaximumSize = new Size(650, 0), Margin = new Padding(0, 10, 0, 10),
+                Text = catalog.GetString("Mix settings freely: for example, High clouds with reflections Off. Ultra increases GPU and memory use and does not guarantee a particular FPS. Shadows, viewing distance, antialiasing and display settings remain available on the Graphics tab. Presets also set shadows/viewing distance; they do not change screen resolution or FPS target. Click OK and start a new activity to apply changes. Cancel discards changes."),
             };
-            layout.Controls.Add(description, 0, 10);
-            layout.SetColumnSpan(description, 2);
-            var preset = new Button
-            {
-                AutoSize = true, Margin = new Padding(0, 16, 0, 0),
-                Text = catalog.GetString("Apply 1080p / 60 FPS target"),
-            };
-            preset.Click += (sender, args) =>
-            {
-                environmentQuality.SelectedIndex = 1;
-                environmentIntensity.Value = 70;
-                environmentSunGlare.Checked = true;
-                environmentColorGrading.Checked = environmentBloom.Checked = environmentWaterReflections.Checked = true;
-                environmentVolumetricClouds.Checked = true;
-                environmentCloudResolution.Value = 25;
-                checkUseMSTSEnv.Checked = false;
-                environmentGroundFog.Value = 35;
-                environmentFogHeight.Value = 40;
-                comboWindowSize.Text = "1920x1080";
-                checkModelInstancing.Checked = true;
-                checkDynamicShadows.Checked = true;
-                checkShadowAllShapes.Checked = false;
-                trackAntiAliasing.Value = (int)ORTS.Settings.UserSettings.AntiAliasingMethod.MSAA2x;
-                numericViewingDistance.Value = 2000;
-                checkPerformanceTuner.Checked = true;
-                numericPerformanceTunerTarget.Value = 60;
-                numericPerformanceTunerTarget.Enabled = labelPerformanceTunerTarget.Enabled = true;
-                applyBalancedShadowSettings = true;
-                applyFpsShadowSettings = false;
-            };
-            layout.Controls.Add(preset, 0, 11);
-            layout.SetColumnSpan(preset, 2);
-            var highPreset = new Button { AutoSize = true, Text = catalog.GetString("Apply High visual preset"), Margin = new Padding(0, 8, 0, 0) };
-            highPreset.Click += (sender, args) =>
-            {
-                preset.PerformClick();
-                environmentQuality.SelectedIndex = 2;
-                environmentIntensity.Value = 100;
-                environmentCloudResolution.Value = 50;
-                checkPerformanceTuner.Checked = false;
-                checkShadowAllShapes.Checked = true;
-            };
-            layout.Controls.Add(highPreset, 0, 12);
-            layout.SetColumnSpan(highPreset, 2);
-            var fpsPreset = new Button { AutoSize = true, Text = catalog.GetString("Apply High / FPS preset"), Margin = new Padding(0, 8, 0, 0) };
-            fpsPreset.Click += (sender, args) =>
-            {
-                preset.PerformClick();
-                environmentQuality.SelectedIndex = 2;
-                environmentIntensity.Value = 100;
-                environmentCloudResolution.Value = 33;
-                environmentWaterReflections.Checked = false;
-                numericViewingDistance.Value = 1500;
-                applyFpsShadowSettings = true;
-            };
-            layout.Controls.Add(fpsPreset, 0, 13);
-            layout.SetColumnSpan(fpsPreset, 2);
+            layout.Controls.Add(description, 0, row); layout.SetColumnSpan(description, 2);
+            apply.Click += (sender, args) => ApplyEnvironmentPreset(presets.SelectedIndex + 1);
             environmentQuality.SelectedIndexChanged += (sender, args) =>
             {
-                environmentIntensity.Enabled = environmentSunGlare.Enabled = environmentQuality.SelectedIndex > 0;
-                environmentGroundFog.Enabled = environmentFogHeight.Enabled = environmentQuality.SelectedIndex > 0;
+                if (!loadingEnvironment && environmentQuality.SelectedIndex == 1) checkUseMSTSEnv.Checked = false;
+                UpdateEnvironmentAvailability();
             };
-            environmentIntensity.Enabled = environmentSunGlare.Enabled = environmentQuality.SelectedIndex > 0;
-            environmentGroundFog.Enabled = environmentFogHeight.Enabled = environmentQuality.SelectedIndex > 0;
-            page.Controls.Add(layout);
-            tabOptions.TabPages.Add(page);
+            environmentCloudQuality.SelectedIndexChanged += (sender, args) =>
+            {
+                if (!loadingEnvironment && environmentCloudQuality.SelectedIndex > 0)
+                    environmentCloudResolution.Value = GraphicsQuality.Clouds(environmentCloudQuality.SelectedIndex).ResolutionPercent;
+                UpdateEnvironmentAvailability();
+            };
+            environmentIntensity.ValueChanged += (sender, args) => UpdateEnvironmentAvailability();
+            environmentGroundFog.ValueChanged += (sender, args) => UpdateEnvironmentAvailability();
+            checkUseMSTSEnv.CheckedChanged += (sender, args) => UpdateEnvironmentAvailability();
+            environmentShadowQuality.SelectedIndexChanged += (sender, args) =>
+            {
+                if (loadingEnvironment || updatingEnvironmentShadows || environmentShadowQuality.SelectedIndex == 5) return;
+                updatingEnvironmentShadows = true;
+                environmentShadowsChanged = true;
+                checkDynamicShadows.Checked = environmentShadowQuality.SelectedIndex > 0;
+                checkShadowAllShapes.Checked = environmentShadowQuality.SelectedIndex >= 3;
+                updatingEnvironmentShadows = false;
+            };
+            checkDynamicShadows.CheckedChanged += (sender, args) =>
+            {
+                if (updatingEnvironmentShadows) return;
+                updatingEnvironmentShadows = true;
+                environmentShadowQuality.SelectedIndex = checkDynamicShadows.Checked
+                    ? !environmentShadowsChanged && Settings.DynamicShadows ? shadowLevel : 5 : 0;
+                updatingEnvironmentShadows = false;
+            };
+            page.Controls.Add(layout); tabOptions.TabPages.Add(page);
+            loadingEnvironment = false;
+            UpdateEnvironmentAvailability();
+        }
+
+        void UpdateEnvironmentAvailability()
+        {
+            var modern = environmentQuality.SelectedIndex == 1 && !checkUseMSTSEnv.Checked;
+            environmentIntensity.Enabled = modern;
+            var active = modern && environmentIntensity.Value > 0;
+            environmentCloudQuality.Enabled = environmentReflectionQuality.Enabled = environmentBloomQuality.Enabled = active;
+            environmentCloudResolution.Enabled = active && environmentCloudQuality.SelectedIndex > 0;
+            environmentColorGrading.Enabled = environmentSunGlare.Enabled = environmentGroundFog.Enabled = active;
+            environmentFogHeight.Enabled = active && environmentGroundFog.Value > 0;
+            environmentNotice.Text = catalog.GetString(checkUseMSTSEnv.Checked
+                ? "MSTS environment is enabled on the Graphics tab; modern effects are bypassed. Choose Modern or apply a preset to enable them."
+                : !modern ? "Original renderer selected. Independent modern effects are bypassed."
+                : !active ? "Effect strength is zero. Modern effects are bypassed."
+                : "Independent quality settings are active. Changes apply to the next activity; no specific FPS is guaranteed.");
+        }
+
+        void ApplyEnvironmentPreset(int level)
+        {
+            environmentPreset = level;
+            environmentQuality.SelectedIndex = 1; checkUseMSTSEnv.Checked = false;
+            environmentIntensity.Value = 100;
+            environmentCloudQuality.SelectedIndex = level;
+            environmentCloudResolution.Value = GraphicsQuality.Clouds(level).ResolutionPercent;
+            environmentReflectionQuality.SelectedIndex = level == 1 ? 0 : level == 2 ? 1 : level;
+            environmentBloomQuality.SelectedIndex = level;
+            environmentColorGrading.Checked = environmentSunGlare.Checked = true;
+            environmentGroundFog.Value = 35; environmentFogHeight.Value = 40;
+            checkModelInstancing.Checked = true;
+            environmentShadowQuality.SelectedIndex = level;
+            updatingEnvironmentShadows = true;
+            checkDynamicShadows.Checked = true; checkShadowAllShapes.Checked = level >= 3;
+            updatingEnvironmentShadows = false;
+            environmentShadowsChanged = true;
+            numericViewingDistance.Value = level == 1 ? 1000 : level == 2 ? 2000 : level == 3 ? 2500 : 4000;
+            UpdateEnvironmentAvailability();
         }
 
         void SaveEnvironmentOptions()
         {
-            Settings.EnvironmentQuality = environmentQuality.SelectedIndex;
+            Settings.EnvironmentQuality = environmentQuality.SelectedIndex == 0 ? 0 : 2;
             Settings.EnvironmentIntensity = (int)environmentIntensity.Value;
             Settings.EnvironmentSunGlare = environmentSunGlare.Checked;
             Settings.EnvironmentGroundFog = (int)environmentGroundFog.Value;
             Settings.EnvironmentFogHeight = (int)environmentFogHeight.Value;
             Settings.EnvironmentColorGrading = environmentColorGrading.Checked;
-            Settings.EnvironmentBloom = environmentBloom.Checked;
-            Settings.EnvironmentWaterReflections = environmentWaterReflections.Checked;
-            Settings.EnvironmentVolumetricClouds = environmentVolumetricClouds.Checked;
+            Settings.EnvironmentCloudQuality = environmentCloudQuality.SelectedIndex;
+            Settings.EnvironmentReflectionQuality = environmentReflectionQuality.SelectedIndex;
+            Settings.EnvironmentBloomQuality = environmentBloomQuality.SelectedIndex;
+            Settings.EnvironmentVolumetricClouds = Settings.EnvironmentCloudQuality > 0;
+            Settings.EnvironmentWaterReflections = Settings.EnvironmentReflectionQuality > 0;
+            Settings.EnvironmentBloom = Settings.EnvironmentBloomQuality > 0;
             Settings.EnvironmentCloudResolution = (int)environmentCloudResolution.Value;
-            if (applyBalancedShadowSettings)
+            if (environmentShadowsChanged && environmentShadowQuality.SelectedIndex < 5)
             {
-                // Defer mutation until OK; Cancel must preserve the user's settings.
-                Settings.ShadowMapCount = 2;
-                Settings.ShadowMapResolution = environmentQuality.SelectedIndex >= 2 && !applyFpsShadowSettings ? 2048 : 1024;
-                Settings.ShadowMapDistance = 0;
-                Settings.ShadowMapBlur = true;
-                Settings.DirectXFeatureLevel = ""; // Re-detect the available profile when the activity starts.
+                var level = environmentShadowQuality.SelectedIndex;
+                Settings.ShadowMapCount = level == 0 ? 0 : level == 1 ? 1 : level == 4 ? 4 : 2;
+                Settings.ShadowMapResolution = level <= 2 ? 1024 : 2048;
+                Settings.ShadowMapDistance = 0; Settings.ShadowMapBlur = true;
             }
+            if (environmentPreset.HasValue) Settings.DirectXFeatureLevel = "";
         }
     }
 }
